@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0b0e14" />
+<title>硬件监控</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  color-scheme:dark;--bg:#0b0e14;--panel:#131822;--panel2:#0f141d;
+  --line:rgba(255,255,255,.075);--txt:#e8eef7;--dim:#94a0b2;--dim2:#667286;
+  --blue:#60a5fa;--cyan:#22d3ee;--ok:#34d399;--warn:#fbbf24;--bad:#fb7185;
+}
+html,body{margin:0;padding:0;overflow-x:hidden;max-width:100%}
+body{
+  background:radial-gradient(1000px 500px at 10% -8%,rgba(59,130,246,.12),transparent 62%),var(--bg);
+  color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:14px;line-height:1.45;min-height:100vh;padding-bottom:calc(24px + env(safe-area-inset-bottom));
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";
+}
+button{font-family:inherit}
+.topbar{position:sticky;top:0;z-index:50;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:12px;background:rgba(11,14,20,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.brand{font-size:15px;font-weight:650;letter-spacing:.02em;color:#fff;flex:none}.brand span{color:var(--dim2);font-weight:400;font-size:11px;margin-left:8px}
+.devices{display:flex;gap:4px;background:rgba(255,255,255,.045);padding:3px;border-radius:10px;margin-left:auto}
+.dev{border:0;background:transparent;color:var(--dim);font-size:12.5px;padding:6px 12px;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.dev.active{background:rgba(96,165,250,.16);color:#bfdbfe;box-shadow:inset 0 0 0 1px rgba(96,165,250,.25)}
+.dev-dot{width:6px;height:6px;border-radius:50%;background:var(--dim2)}.dev-dot.ok{background:var(--ok)}.dev-dot.warn{background:var(--warn)}.dev-dot.bad{background:var(--bad)}
+.live{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dim);flex:none}.live i{width:7px;height:7px;border-radius:50%;background:var(--dim2)}.live.ok i{background:var(--ok);box-shadow:0 0 0 3px rgba(52,211,153,.12)}.live.warn i{background:var(--warn)}.live.bad i{background:var(--bad)}
+.wrap{max-width:1180px;margin:0 auto;padding:16px 14px 0}
+.health{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:start;padding:14px 16px;margin-bottom:14px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(100deg,rgba(52,211,153,.08),transparent 55%),var(--panel)}
+.health.warn{border-color:rgba(251,191,36,.35);background:linear-gradient(100deg,rgba(251,191,36,.1),transparent 65%),var(--panel)}
+.health.bad{border-color:rgba(251,113,133,.45);background:linear-gradient(100deg,rgba(251,113,133,.12),transparent 65%),var(--panel)}
+.health .health-title{font-size:15px;font-weight:650;white-space:nowrap}.health.warn .health-title{color:var(--warn)}.health.bad .health-title{color:var(--bad)}.health.ok .health-title{color:var(--ok)}
+.health .health-detail{color:#c6d0de;font-size:12.5px;min-width:0}.health .health-meta{grid-column:1/-1;color:var(--dim);font-size:11px}.health .alert-rule{color:var(--dim);margin-left:6px}
+.hero{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
+@media(min-width:560px){.hero{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}}
+@media(min-width:900px){.hero{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}}
+.card{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.025),transparent),var(--panel);border:1px solid var(--line);border-radius:15px;padding:14px 9px 11px;display:flex;flex-direction:column;align-items:center;min-width:0;overflow:hidden;transition:border-color .2s}
+.card.warn{border-color:rgba(251,191,36,.42)}.card.bad{border-color:rgba(251,113,133,.55)}.card.unknown{opacity:.68}
+.ring{width:100px;height:100px;position:relative;flex:none}.ring canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.ring .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;pointer-events:none}
+.num{font-size:clamp(19px,4.6vw,26px);font-weight:650;letter-spacing:-.02em;line-height:1.05;color:#fff}.unit{font-size:10px;color:var(--dim2);font-weight:500;letter-spacing:.04em}
+.card.warn .num{color:var(--warn)}.card.bad .num{color:var(--bad)}.card.unknown .num{color:var(--dim2)}
+.card .name{font-size:12px;color:#c3cbd8;margin-top:8px;font-weight:550;text-align:center}.card .meta{font-size:10.5px;color:var(--dim);margin-top:3px;text-align:center;min-height:28px;max-width:100%;line-height:1.35;white-space:normal}
+.card .state{font-size:10px;margin-top:5px;color:var(--dim2)}.card.warn .state{color:var(--warn)}.card.bad .state{color:var(--bad)}
+.metric-box{height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}.metric-box .num{font-size:clamp(24px,5vw,32px)}.metric-box .unit{font-size:11px}
+.panel-grid{display:block}.panel-grid .full{grid-column:1/-1}
+@media(min-width:820px){.panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}.panel-grid .panel{margin-bottom:0}}
+.panel{background:linear-gradient(180deg,rgba(255,255,255,.018),transparent),var(--panel);border:1px solid var(--line);border-radius:15px;padding:16px 16px 10px;margin-bottom:14px;min-width:0}
+.panel-head{margin-bottom:10px}.panel h2{font-size:12px;font-weight:650;color:#aeb9c9;margin:0;letter-spacing:.09em;display:flex;align-items:center;gap:8px}.panel h2::after{content:"";flex:1;height:1px;background:var(--line)}
+.panel-sub{font-size:11px;color:var(--dim);margin-top:5px;overflow-wrap:anywhere;line-height:1.5}.panel-sub:empty{display:none}
+.daily-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}.daily-top h2{margin-top:2px}.range-switch{display:flex;gap:4px;padding:3px;border-radius:9px;background:rgba(255,255,255,.04)}.range-btn{border:0;background:transparent;color:var(--dim);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer}.range-btn.active{background:rgba(96,165,250,.16);color:#bfdbfe}.stats-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.stat{padding:10px 11px;border:1px solid rgba(255,255,255,.05);border-radius:10px;background:rgba(255,255,255,.018);min-width:0}.stat-label{font-size:11px;color:var(--dim)}.stat-value{font-size:18px;font-weight:650;color:#fff;margin-top:3px}.stat-sub{font-size:10.5px;color:var(--dim2);margin-top:2px}.daily-events{font-size:11px;color:var(--dim);margin-top:10px;line-height:1.7}.daily-events b{color:#c3cbd8;font-weight:550}@media(min-width:700px){.stats-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.row{display:grid;grid-template-columns:minmax(82px,110px) 1fr minmax(72px,100px);align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)}.row:last-child{border-bottom:0}
+.row .k{font-size:12.5px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row.disk-row .k{white-space:normal;overflow-wrap:anywhere;line-height:1.35}.row .v{font-size:12.5px;text-align:right;color:var(--txt);font-weight:550}.row .v small{color:var(--dim2);font-weight:400;font-size:10.5px;margin-left:3px}.row .v.warn{color:var(--warn)}.row .v.bad{color:var(--bad)}
+.bar{height:4px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}.bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#3b82f6,#22d3ee);transition:width .4s}.bar i.warn{background:var(--warn)}.bar i.bad{background:var(--bad)}.bar.none{background:transparent}
+.empty-row{padding:16px 0;color:var(--dim2);font-size:12px;text-align:center}
+.chart-panel{padding:15px 14px 13px}.chart-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;flex-wrap:wrap}.chart-head .t{font-size:12.5px;color:#c3cbd8;font-weight:550}.chart-head .t em{font-style:normal;color:var(--dim2);font-size:11px;margin-left:6px}
+.legend{display:flex;gap:8px 14px;margin-left:auto;font-size:11px;color:var(--dim);flex-wrap:wrap}.legend span{display:flex;align-items:center;gap:5px}.legend i{width:8px;height:8px;border-radius:2px;display:block;flex:none}.legend b{color:var(--txt);font-weight:550}
+.chart-wrap{position:relative}.chart-wrap canvas{width:100%;height:178px;display:block;touch-action:pan-y}.chart-tip{position:absolute;display:none;pointer-events:none;z-index:5;min-width:140px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:rgba(15,20,29,.96);box-shadow:0 8px 25px rgba(0,0,0,.25);font-size:11px;color:var(--dim)}.chart-tip b{color:var(--txt);font-weight:550}.chart-tip .tip-time{margin-bottom:4px;color:var(--dim2)}
+.chart-range{font-size:10.5px;color:var(--dim2);margin-top:4px;min-height:15px}
+.foot{text-align:center;font-size:11px;color:var(--dim2);padding:14px 0 4px}.foot b{color:var(--dim);font-weight:500}
+@media(min-width:820px){.ring{width:120px;height:120px}.metric-box{height:120px}.card{padding:17px 12px 13px}.card .name{font-size:13px}}
+@media(max-width:600px){.topbar{padding-left:12px;padding-right:12px;gap:8px}.brand span{display:none}.devices{margin-left:auto}.dev{padding:6px 9px}.live{flex-basis:100%;justify-content:flex-end;margin-top:-3px}.health{grid-template-columns:1fr;gap:5px;padding:13px}.health .health-meta{grid-column:1}.row{grid-template-columns:minmax(78px,96px) 1fr minmax(68px,88px);gap:8px}.chart-head{display:block}.legend{margin-left:0;margin-top:8px}.chart-wrap canvas{height:168px}.panel{padding:14px 12px 9px}.alert-rule{display:block;margin:2px 0 0}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">硬件监控<span>HW Monitor</span></div>
+  <div class="devices">
+    <button class="dev active" data-d="desktop"><i class="dev-dot" id="dot-desktop"></i>台式机</button>
+    <button class="dev" data-d="laptop"><i class="dev-dot" id="dot-laptop"></i>笔记本</button>
+  </div>
+  <div class="live" id="live"><i></i><span id="liveTxt">正在连接</span></div>
+</header>
+<main class="wrap">
+  <section class="health" id="health">
+    <div class="health-title" id="healthTitle">正在读取</div>
+    <div class="health-detail" id="healthDetail">等待设备返回实时快照</div>
+    <div class="health-meta" id="healthMeta">采样间隔 2 秒</div>
+  </section>
+  <section class="hero" id="hero"></section>
+  <div class="panel-grid">
+    <section class="panel" id="gpuPanel">
+      <div class="panel-head"><h2 id="gpuTitle">显卡</h2><div class="panel-sub" id="gpuModel"></div></div>
+      <div id="gpuRows"></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>处理器</h2><div class="panel-sub" id="cpuModel"></div></div>
+      <div id="cpuRows"></div>
+    </section>
+    <section class="panel full">
+      <div class="panel-head"><h2>存储与内存</h2><div class="panel-sub" id="diskCount"></div></div>
+      <div id="otherRows"></div>
+    </section>
+    <section class="panel full" id="dailyPanel">
+      <div class="daily-top">
+        <div><h2>今日使用小结</h2><div class="panel-sub" id="dailyMeta">等待今日采样统计</div></div>
+        <div class="range-switch" aria-label="曲线时间范围">
+          <button class="range-btn active" data-range="4m">4 分钟</button>
+          <button class="range-btn" data-range="1h">1 小时</button>
+          <button class="range-btn" data-range="today">今日</button>
+        </div>
+      </div>
+      <div class="stats-grid" id="dailyStats"></div>
+      <div class="daily-events" id="dailyEvents"></div>
+    </section>
+    <section class="panel chart-panel">
+      <div class="chart-head"><div class="t">温度曲线<em id="tempWindow">近 4 分钟</em></div><div class="legend" id="tempLegend"></div></div>
+      <div class="chart-wrap"><canvas id="cTemp"></canvas><div class="chart-tip" id="tipTemp"></div></div>
+      <div class="chart-range" id="tempRange"></div>
+    </section>
+    <section class="panel chart-panel">
+      <div class="chart-head"><div class="t">功耗曲线<em id="powerWindow">近 4 分钟 · CPU / GPU 同图</em></div><div class="legend" id="powerLegend"></div></div>
+      <div class="chart-wrap"><canvas id="cPower"></canvas><div class="chart-tip" id="tipPower"></div></div>
+      <div class="chart-range" id="powerRange"></div>
+    </section>
+  </div>
+  <div class="foot">采样间隔 <b>2s</b> · <span id="sourceFoot">等待数据源状态</span> · EasyTier 直连</div>
+</main>
+<script>
+const PEERS=[
+  {key:'desktop',label:'台式机',device:'desktop-pc',base:'http://192.168.1.10:8090'},
+  {key:'laptop',label:'笔记本',device:'laptop-pc',base:'http://192.168.1.11:8090'}
+];
+let cur=new URLSearchParams(location.search).get('dev')==='laptop'?'laptop':'desktop';
+let layoutSig='',activeCards=[],tickSeq=0,badgeSeq=0,dailySeq=0,chartRange='4m',lastSnapshot={};
+const HERO_POOL=[
+  {k:'gpuCore',t:'GPU 核心',u:'°C',max:100,metric:'gpu.core'},
+  {k:'gpuHot',t:'GPU 热点',u:'°C',max:115,metric:'gpu.hot'},
+  {k:'gpuMem',t:'显存结温',u:'°C',max:110,metric:'gpu.mem'},
+  {k:'pin12v',t:'16pin 电压',u:'V',metric:'gpu.pin_volt',kind:'metric',dp:2},
+  {k:'cpuTemp',t:'CPU 温度',u:'°C',max:105,metric:'cpu.temp'},
+  {k:'cpuCoreMax',t:'CPU 核心最高',u:'°C',max:105,metric:'cpu.core_max'},
+  {k:'gpuPower',t:'GPU 功耗',u:'W',max:575,neutral:true},
+  {k:'cpuPower',t:'CPU 功耗',u:'W',max:219,neutral:true},
+  {k:'cpuVolt',t:'CPU 电压',u:'V',max:1.5,neutral:true,dp:3},
+  {k:'cpuLoad',t:'CPU 占用',u:'%',max:100,neutral:true,dp:0},
+  {k:'memPct',t:'内存占用',u:'%',max:100,metric:'mem.pct',dp:0},
+  {k:'diskMax',t:'磁盘最高占用',u:'%',max:100,neutral:true,dp:0},
+  {k:'gpuClock',t:'核显频率',u:'MHz',max:1600,neutral:true,dp:0}
+];
+const GET={
+  gpuCore:s=>s.gpu?.core,gpuHot:s=>s.gpu?.hot,gpuMem:s=>s.gpu?.mem,pin12v:s=>s.gpu?.pin_volt,
+  cpuTemp:s=>s.cpu?.temp,cpuCoreMax:s=>s.cpu?.core_max,gpuPower:s=>s.gpu?.power,cpuPower:s=>s.cpu?.power,
+  cpuVolt:s=>s.cpu?.volt,cpuLoad:s=>s.cpu?.load,memPct:s=>s.mem?.pct,
+  diskMax:s=>s.disk?.length?Math.max(...s.disk.map(d=>d.used_pct).filter(Number.isFinite)):null,
+  gpuClock:s=>s.gpu?.clock
+};
+const fmt=(v,dp=1)=>Number.isFinite(v)?v.toFixed(dp):'--';
+const peerNow=()=>PEERS.find(p=>p.key===cur)||PEERS[0];
+const alertsOf=s=>Object.fromEntries((s.alerts||[]).map(a=>[a.key,a]));
+const isLaptop=s=>(s.capabilities?.device_class? s.capabilities.device_class==='laptop':cur==='laptop');
+
+function pickCards(s){
+  const keys=isLaptop(s)?['cpuTemp','cpuCoreMax','cpuPower','cpuLoad','memPct','diskMax']:['gpuCore','gpuHot','gpuMem','pin12v','cpuTemp','cpuCoreMax','gpuPower','memPct'];
+  return keys.map(k=>HERO_POOL.find(c=>c.k===k)).filter(Boolean);
+}
+function ringPct(cfg,v){return Math.max(0,Math.min(1,v/(cfg.max||100)))}
+function drawRing(cv,pct,color){
+  if(!cv)return;const dpr=window.devicePixelRatio||1,size=cv.clientWidth||100;if(!size)return;
+  const w=Math.round(size*dpr);if(cv.width!==w){cv.width=w;cv.height=w}
+  const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,size,size);
+  const lw=Math.max(5,size*.068),r=size/2-lw/2-1,cx=size/2,cy=size/2;
+  c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.strokeStyle='rgba(255,255,255,.075)';c.lineWidth=lw;c.stroke();
+  if(pct<=.001)return;const start=-Math.PI/2,end=start+Math.PI*2*pct;
+  c.beginPath();c.arc(cx,cy,r,start,end);c.strokeStyle=color;c.lineWidth=lw;c.lineCap='round';c.stroke();
+}
+function rebuildHero(cards){
+  const host=document.getElementById('hero');
+  host.innerHTML=cards.map(cfg=>`<div class="card unknown" data-k="${cfg.k}">
+    ${cfg.kind==='metric'?`<div class="metric-box"><div class="num">--</div><div class="unit">${cfg.u}</div></div>`:`<div class="ring"><canvas></canvas><div class="val"><div class="num">--</div><div class="unit">${cfg.u}</div></div></div>`}
+    <div class="name">${cfg.t}</div><div class="meta"></div><div class="state">等待数据</div></div>`).join('');
+}
+function metaOf(k,s){
+  switch(k){
+    case'gpuCore':return'预警 80 / 严重 90°C';case'gpuHot':return'预警 90 / 严重 105°C';
+    case'gpuMem':return'预警 90 / 严重 100°C';case'pin12v':return'整路电压 · 低压预警 ≤11.8V';
+    case'cpuTemp':return'封装温度 · 预警 85 / 严重 95°C';case'cpuCoreMax':return'最热核心 · 预警 85 / 严重 95°C';
+    case'gpuPower':return'中性监控 · 不作独立健康告警';case'cpuPower':return'中性监控 · 不作独立健康告警';
+    case'cpuLoad':return'处理器总占用 · 中性监控';case'memPct':return'资源提示 · 预警 75 / 严重 90%';
+    case'diskMax':return`${s.disk?.length||0} 块磁盘中的最高占用`;default:return'';
+  }
+}
+function setCard(cfg,v,s){
+  const card=document.querySelector(`.card[data-k="${cfg.k}"]`);if(!card)return;
+  const has=Number.isFinite(v),alert=alertsOf(s)[cfg.metric],st=!has?'unknown':alert?.severity||'ok';
+  card.classList.remove('ok','warn','bad','unknown');card.classList.add(st);
+  card.querySelector('.num').textContent=has?v.toFixed(cfg.dp??1):'--';
+  if(cfg.kind!=='metric')drawRing(card.querySelector('canvas'),has?ringPct(cfg,v):0,st==='bad'?'#fb7185':st==='warn'?'#fbbf24':'#60a5fa');
+  const meta=card.querySelector('.meta'),txt=metaOf(cfg.k,s);if(meta.textContent!==txt)meta.textContent=txt;
+  card.querySelector('.state').textContent=!has?'无数据':alert?st==='bad'?'严重':'预警':cfg.neutral?'实时':'正常';
+}
+function updateHero(s){
+  const cards=pickCards(s),sig=cur+':'+cards.map(c=>c.k).join(',');
+  if(sig!==layoutSig){layoutSig=sig;activeCards=cards;rebuildHero(cards)}
+  activeCards.forEach(cfg=>setCard(cfg,GET[cfg.k]?.(s),s));
+}
+function setStatus(state,text){const live=document.getElementById('live');live.className='live '+state;document.getElementById('liveTxt').textContent=text}
+function sourceText(s){
+  const caps=s.capabilities||{},gpuz=caps.gpuz_expected?(s.sources?.gpuz?'GPU-Z 正常':'GPU-Z 异常'):'GPU-Z 不适用';
+  return`LHM ${s.sources?.lhm?'正常':'断开'} · ${gpuz}`;
+}
+function renderHealth(s){
+  const h=s.health||{status:'ok',label:'运行正常'},alerts=s.alerts||[],box=document.getElementById('health');
+  box.className='health '+h.status;document.getElementById('healthTitle').textContent=h.label;
+  document.getElementById('healthDetail').innerHTML=alerts.length?alerts.slice(0,3).map(a=>`<div><b>${escapeHtml(a.message)}</b>${durationText(a)}<span class="alert-rule">${escapeHtml(a.rule||'')}</span></div>`).join(''):'温度、电压、资源与数据源均未发现异常';
+  const age=Number.isFinite(s.snapshot_age_ms)?` · ${Math.round(s.snapshot_age_ms/1000)} 秒前采样`:'';
+  document.getElementById('healthMeta').textContent=`采样时间 ${formatTime(s.ts)}${age} · ${sourceText(s)}`;
+  document.getElementById('sourceFoot').textContent=sourceText(s);
+}
+function barRow(k,pct,valHtml,cls='',title='',rowCls=''){
+  const inner=Number.isFinite(pct)?`<i class="${cls}" style="width:${Math.max(0,Math.min(100,pct*100)).toFixed(1)}%"></i>`:'';
+  return`<div class="row ${rowCls}"><div class="k" title="${escapeHtml(title||k)}">${escapeHtml(k)}</div><div class="bar ${Number.isFinite(pct)?'':'none'}">${inner}</div><div class="v ${cls}">${valHtml}</div></div>`;
+}
+function metricRow(label,value,unit,pct,key,s,dp=1){
+  const a=alertsOf(s)[key],cls=a?.severity||'';
+  return barRow(label,pct,`${fmt(value,dp)}<small>${unit}</small>`,cls);
+}
+function renderDetail(s){
+  const g=s.gpu||{},c=s.cpu||{},m=s.mem||{},laptop=isLaptop(s);
+  document.getElementById('gpuTitle').textContent=laptop?'集成显卡':'显卡';
+  document.getElementById('gpuModel').textContent=g.name||'未识别型号';document.getElementById('cpuModel').textContent=c.name||'未识别型号';
+  let gpuRows;
+  if(laptop){
+    gpuRows=[barRow('核心频率',(g.clock||0)/1600,`${fmt(g.clock,0)}<small>MHz</small>`),barRow('核显占用',Number.isFinite(g.load)?g.load/100:null,`${fmt(g.load,0)}<small>%</small>`)].join('');
+  }else{
+    gpuRows=[
+      metricRow('核心温度',g.core,'°C',Number.isFinite(g.core)?g.core/100:null,'gpu.core',s),
+      metricRow('热点温度',g.hot,'°C',Number.isFinite(g.hot)?g.hot/115:null,'gpu.hot',s),
+      metricRow('显存结温',g.mem,'°C',Number.isFinite(g.mem)?g.mem/110:null,'gpu.mem',s),
+      barRow('核心频率',(g.clock||0)/3200,`${fmt(g.clock,0)}<small>MHz</small>`),
+      barRow('16pin 功耗',(g.pin_power||0)/600,`${fmt(g.pin_power,0)}<small>W</small>`),
+      metricRow('16pin 电压',g.pin_volt,'V',null,'gpu.pin_volt',s,2),
+      barRow('风扇转速',(g.fan||0)/3000,`${g.fan!=null?Math.round(g.fan):'--'}<small>RPM</small>`)
+    ].join('');
+  }
+  document.getElementById('gpuRows').innerHTML=gpuRows;
+  document.getElementById('cpuRows').innerHTML=[
+    metricRow('封装温度',c.temp,'°C',Number.isFinite(c.temp)?c.temp/105:null,'cpu.temp',s),
+    metricRow('核心最高',c.core_max,'°C',Number.isFinite(c.core_max)?c.core_max/105:null,'cpu.core_max',s),
+    barRow('封装功耗',(c.power||0)/(laptop?95:219),`${fmt(c.power)}<small>W</small>`),
+    barRow('CPU 电压',(c.volt||0)/1.5,`${fmt(c.volt,3)}<small>V</small>`),
+    barRow('总占用',(c.load||0)/100,`${fmt(c.load,0)}<small>%</small>`),
+    barRow('核心频率',(c.clock||0)/5600,`${fmt(c.clock,0)}<small>MHz</small>`)
+  ].join('');
+  const disks=s.disk||[];document.getElementById('diskCount').textContent=disks.length?`共 ${disks.length} 块 · 完整名称可长按或悬停查看`:'';
+  let html='';
+  if(m.pct!=null)html+=metricRow('内存占用',m.pct,'%',m.pct/100,'mem.pct',s,0);
+  else html+=barRow('内存数据',null,`<small>LHM 数据含页面文件，未换算物理占用</small>`);
+  html+=disks.map((d,i)=>{const a=alertsOf(s)[`disk.${i}`];return barRow(d.name,d.used_pct/100,`${fmt(d.used_pct,0)}<small>%</small>`,a?.severity||'',d.name,'disk-row')}).join('');
+  document.getElementById('otherRows').innerHTML=html||'<div class="empty-row">暂无存储与内存数据</div>';
+}
+function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
+function formatTime(ts){if(!Number.isFinite(ts))return'--';return new Date(ts).toLocaleTimeString('zh-CN',{hour12:false})}
+function durationText(a){
+  if(!Number.isFinite(a.since)||String(a.key).startsWith('source.'))return'';
+  const seconds=Math.max(0,Math.round((Date.now()-a.since)/1000));
+  return`<span> · 持续 ${seconds<60?seconds+' 秒':Math.floor(seconds/60)+' 分钟'}</span>`;
+}
+
+async function fetchJSON(peer,path,timeout=4000){
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),timeout);
+  try{const r=await fetch(peer.base+path,{cache:'no-store',signal:ctrl.signal});if(!r.ok)return null;return await r.json()}catch(e){return null}finally{clearTimeout(timer)}
+}
+function clearCharts(){
+  ['cTemp','cPower'].forEach(id=>{const cv=document.getElementById(id),c=cv.getContext('2d');c.clearRect(0,0,cv.width,cv.height)});
+  ['tempLegend','powerLegend','tempRange','powerRange'].forEach(id=>document.getElementById(id).textContent='');
+}
+function clearData(message){
+  const empty={capabilities:{device_class:cur},disk:[]};updateHero(empty);
+  document.getElementById('gpuRows').innerHTML=`<div class="empty-row">${escapeHtml(message)}</div>`;
+  document.getElementById('cpuRows').innerHTML=`<div class="empty-row">${escapeHtml(message)}</div>`;
+  document.getElementById('otherRows').innerHTML=`<div class="empty-row">${escapeHtml(message)}</div>`;
+  document.getElementById('gpuModel').textContent='';document.getElementById('cpuModel').textContent='';document.getElementById('diskCount').textContent='';clearCharts();
+}
+function renderOffline(message){
+  setStatus('bad',message);clearData(message);const box=document.getElementById('health');box.className='health bad';
+  document.getElementById('healthTitle').textContent='设备不可用';document.getElementById('healthDetail').textContent=message+'，旧详情与曲线已清除';
+  document.getElementById('healthMeta').textContent='请检查 agent、LHM、GPU-Z 或 EasyTier 连接';document.getElementById('sourceFoot').textContent='数据源不可用';
+  document.getElementById('dailyMeta').textContent='设备离线，今日统计不可用';document.getElementById('dailyStats').innerHTML='';document.getElementById('dailyEvents').textContent='';
+}
+async function tick(){
+  const seq=++tickSeq,peer=peerNow(),s=await fetchJSON(peer,'/api/snapshot');
+  if(seq!==tickSeq||cur!==peer.key)return;
+  if(!s||s.online===false){renderOffline(peer.label+'离线');return}
+  if(s.device&&peer.device&&s.device!==peer.device){renderOffline(peer.label+'设备身份不匹配');return}
+  setStatus(s.health?.status==='bad'?'bad':s.health?.status==='warn'?'warn':'ok',formatTime(s.ts)+' 采样');
+  lastSnapshot=s;updateHero(s);renderHealth(s);renderDetail(s);
+  const h=await fetchJSON(peer,'/api/history'+(chartRange==='4m'?'':'?window='+chartRange));if(seq!==tickSeq||cur!==peer.key)return;
+  if(h)renderCharts(h);else clearCharts();
+}
+
+document.querySelectorAll('.dev').forEach(btn=>btn.addEventListener('click',()=>{
+  if(btn.dataset.d===cur)return;cur=btn.dataset.d;tickSeq++;layoutSig='';
+  document.querySelectorAll('.dev').forEach(b=>b.classList.toggle('active',b===btn));
+  try{history.replaceState(null,'','?dev='+cur)}catch(e){}clearData('正在加载');setStatus('warn','正在连接');renderDailyLoading();tick();refreshDaily();
+}));
+document.querySelectorAll('.dev').forEach(b=>b.classList.toggle('active',b.dataset.d===cur));
+async function refreshBadges(){
+  const seq=++badgeSeq,results=await Promise.all(PEERS.map(async p=>({p,s:await fetchJSON(p,'/api/snapshot',3000)})));
+  if(seq!==badgeSeq)return;
+  results.forEach(({p,s})=>{const dot=document.getElementById('dot-'+p.key);dot.className='dev-dot '+(s?.health?.status||(s?'warn':'bad'))});
+}
+
+function renderDailyLoading(){
+  document.getElementById('dailyMeta').textContent='正在读取今日采样统计';
+  document.getElementById('dailyStats').innerHTML='';document.getElementById('dailyEvents').textContent='';
+}
+function statCard(label,value,sub){return`<div class="stat"><div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(value)}</div><div class="stat-sub">${escapeHtml(sub)}</div></div>`}
+function durationTextSec(seconds){seconds=Math.max(0,Math.round(seconds||0));return seconds<60?seconds+' 秒':seconds<3600?Math.floor(seconds/60)+' 分钟':(seconds/3600).toFixed(1)+' 小时'}
+function renderDaily(d){
+  const laptop=isLaptop(lastSnapshot),m=d.metrics||{},cards=[];
+  const pair=(key,unit,dp=0)=>`${fmt(m[key]?.avg,dp)} / ${fmt(m[key]?.max,dp)} ${unit}`;
+  cards.push(statCard('CPU 温度',pair('cpu_temp','°C',1),'今日平均 / 最高'));
+  if(laptop){
+    cards.push(statCard('CPU 功耗',pair('cpu_power','W',1),'今日平均 / 最高'));
+    cards.push(statCard('CPU 占用',pair('cpu_load','%',0),'今日平均 / 最高'));
+    cards.push(statCard('内存占用',pair('mem_pct','%',0),'今日平均 / 最高'));
+  }else{
+    cards.push(statCard('GPU 热点',pair('gpu_hot','°C',1),'今日平均 / 最高'));
+    cards.push(statCard('CPU 功耗',pair('cpu_power','W',1),'今日平均 / 最高'));
+    cards.push(statCard('GPU 功耗',pair('gpu_power','W',1),'今日平均 / 最高'));
+    cards.push(statCard('CPU 占用',pair('cpu_load','%',0),'今日平均 / 最高'));
+    cards.push(statCard('GPU 占用',pair('gpu_load','%',0),'今日平均 / 最高'));
+    cards.push(statCard('内存占用',pair('mem_pct','%',0),'今日平均 / 最高'));
+    cards.push(statCard('16pin 最低电压',`${fmt(m.pin_volt?.min,2)} V`,'整路电压 · 非分针脚测量'));
+  }
+  document.getElementById('dailyStats').innerHTML=cards.join('');
+  const first=d.first_sample?formatTime(d.first_sample):'--';
+  document.getElementById('dailyMeta').textContent=`${d.date} · ${d.samples||0} 个采样 · 首次 ${first} · 有效覆盖 ${fmt(d.coverage_pct,1)}% · 保留 ${d.retention_days||7} 天`;
+  const e=d.events_seconds||{},events=[`CPU ≥85°C：${durationTextSec(e.cpu_temp_ge_85)}`];
+  if(!laptop)events.push(`GPU 核心 ≥80°C：${durationTextSec(e.gpu_core_ge_80)}`,`GPU 热点 ≥90°C：${durationTextSec(e.gpu_hot_ge_90)}`,`16pin ≤11.8V：${durationTextSec(e.pin_volt_le_11_8)}`);
+  document.getElementById('dailyEvents').innerHTML='<b>今日阈值以上累计（按采样估算）</b><br>'+events.map(escapeHtml).join(' · ');
+}
+async function refreshDaily(){
+  const seq=++dailySeq,peer=peerNow(),d=await fetchJSON(peer,'/api/daily',5000);if(seq!==dailySeq||cur!==peer.key)return;
+  if(!d){document.getElementById('dailyMeta').textContent='今日统计不可用：请确认整改版后端与 SQLite 已启动';document.getElementById('dailyStats').innerHTML='';document.getElementById('dailyEvents').textContent='';return}
+  if(!d.samples){document.getElementById('dailyMeta').textContent=`${d.date} · 暂无采样，统计从整改版部署后开始累积，之前的数据无法补回`;document.getElementById('dailyStats').innerHTML='';document.getElementById('dailyEvents').textContent='';return}
+  renderDaily(d);
+}
+function updateRangeLabels(){
+  const label=chartRange==='today'?'今日':chartRange==='1h'?'近 1 小时':'近 4 分钟';
+  document.getElementById('tempWindow').textContent=label;document.getElementById('powerWindow').textContent=label+' · CPU / GPU 同图';
+}
+document.querySelectorAll('.range-btn').forEach(btn=>btn.addEventListener('click',()=>{
+  if(btn.dataset.range===chartRange)return;chartRange=btn.dataset.range;
+  document.querySelectorAll('.range-btn').forEach(b=>b.classList.toggle('active',b===btn));updateRangeLabels();tick();
+}));
+
+/* Canvas 图表：同图比较，按真实时间戳，null 断线。 */
+const CHART_WINDOW=240000;
+function hasSeries(s){return s.data.some(Number.isFinite)&&!(s.zeroMissing&&s.data.every(v=>!Number.isFinite(v)||v===0))}
+function niceMax(v){if(v<=10)return 10;const p=10**Math.floor(Math.log10(v)),n=v/p;const steps=[1,1.2,1.5,2,2.5,3,4,5,6,8,10];return steps.find(x=>n<=x)*p}
+function renderCharts(h){
+  const times=(h.t||[]).map(Number),laptop=isLaptop(lastSnapshot);
+  const tempSeries=[{key:'cpu',label:'CPU',data:h.cpu_temp||[],color:'#22d3ee',unit:'°C',thresholds:[85,95]}];
+  const powerSeries=[{key:'cpu',label:'CPU',data:h.cpu_power||[],color:'#22d3ee',unit:'W',thresholds:[]}];
+  if(!laptop){
+    tempSeries.unshift({key:'gpu',label:'GPU 热点',data:h.gpu_hot||[],color:'#60a5fa',unit:'°C',zeroMissing:true,thresholds:[90,105]});
+    powerSeries.unshift({key:'gpu',label:'GPU',data:h.gpu_power||[],color:'#60a5fa',unit:'W',zeroMissing:true,thresholds:[]});
+  }
+  drawChart(document.getElementById('cTemp'),{kind:'temp',times,meta:h._meta||{},series:tempSeries},'tempLegend','tempRange','tipTemp');
+  drawChart(document.getElementById('cPower'),{kind:'power',times,meta:h._meta||{},series:powerSeries},'powerLegend','powerRange','tipPower');
+}
+function drawChart(cv,cfg,legendId,rangeId,tipId){
+  cfg.series=cfg.series.filter(hasSeries);cv._chart=cfg;bindChart(cv,tipId);
+  const dpr=window.devicePixelRatio||1,w=Math.round(cv.clientWidth),h=Math.round(cv.clientHeight);
+  if(!w||!h)return;const pixelW=Math.round(w*dpr),pixelH=Math.round(h*dpr);if(cv.width!==pixelW||cv.height!==pixelH){cv.width=pixelW;cv.height=pixelH}
+  const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,w,h);
+  const legend=document.getElementById(legendId),range=document.getElementById(rangeId);
+  legend.innerHTML=cfg.series.map(s=>{const vals=s.data.filter(Number.isFinite),last=vals.length?vals[vals.length-1]:null;return`<span><i style="background:${s.color}"></i>${s.label} <b>${fmt(last,s.unit==='W'?0:1)}${s.unit}</b></span>`}).join('');
+  if(!cfg.series.length){c.fillStyle='#667286';c.font='12px sans-serif';c.textAlign='center';c.fillText('当前设备没有可用的'+ (cfg.kind==='temp'?'温度':'功耗')+'历史数据',w/2,h/2);range.textContent='';return}
+  const vals=cfg.series.flatMap(s=>s.data.filter(Number.isFinite));
+  const minV=0,maxV=cfg.kind==='temp'?Math.max(100,Math.ceil(Math.max(...vals)/10)*10):niceMax(Math.max(10,...vals));
+  const pad={l:44,r:12,t:12,b:26},plotW=w-pad.l-pad.r,plotH=h-pad.t-pad.b;
+  const latest=Number.isFinite(cfg.meta?.end)?cfg.meta.end:Math.max(...cfg.times.filter(Number.isFinite),Date.now()),start=Number.isFinite(cfg.meta?.start)?cfg.meta.start:latest-CHART_WINDOW;
+  const x=t=>pad.l+(Math.max(start,Math.min(latest,t))-start)/(latest-start)*plotW,y=v=>pad.t+plotH-(Math.max(minV,Math.min(maxV,v))-minV)/(maxV-minV)*plotH;
+  c.font='10px sans-serif';c.lineWidth=1;c.setLineDash([]);
+  for(let i=0;i<=4;i++){
+    const value=maxV-(maxV-minV)*i/4,yy=pad.t+plotH*i/4;c.beginPath();c.moveTo(pad.l,yy);c.lineTo(w-pad.r,yy);c.strokeStyle='rgba(255,255,255,.065)';c.stroke();
+    c.fillStyle='#8792a4';c.textAlign='right';c.textBaseline='middle';c.fillText(Math.round(value)+(cfg.kind==='temp'?'°':'W'),pad.l-7,yy);
+  }
+  for(let i=0;i<=4;i++){
+    const ts=start+(latest-start)*i/4,xx=pad.l+plotW*i/4;c.beginPath();c.moveTo(xx,pad.t);c.lineTo(xx,pad.t+plotH);c.strokeStyle='rgba(255,255,255,.035)';c.stroke();
+    c.fillStyle='#667286';c.textAlign=i===0?'left':i===4?'right':'center';c.textBaseline='top';c.fillText(new Date(ts).toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit'}),xx,h-17);
+  }
+  cfg.series.forEach(s=>(s.thresholds||[]).forEach(v=>{if(v>maxV)return;const yy=y(v);c.beginPath();c.setLineDash([4,4]);c.moveTo(pad.l,yy);c.lineTo(w-pad.r,yy);c.strokeStyle=s.color+'55';c.stroke();c.setLineDash([])}));
+  cfg.series.forEach(s=>{
+    c.beginPath();c.strokeStyle=s.color;c.lineWidth=2;c.lineJoin='round';let open=false,last=null;
+    for(let i=0;i<s.data.length;i++){const v=s.data[i],t=cfg.times[i];if(!Number.isFinite(v)||!Number.isFinite(t)){open=false;continue}const xx=x(t),yy=y(v);if(!open){c.moveTo(xx,yy);open=true}else c.lineTo(xx,yy);last={x:xx,y:yy}}
+    c.stroke();if(last){c.beginPath();c.arc(last.x,last.y,3,0,Math.PI*2);c.fillStyle=s.color;c.fill()}
+  });
+  const allMin=Math.min(...vals),allMax=Math.max(...vals);
+  const note=cfg.kind==='temp'
+    ?' · 虚线阈值：'+(cfg.series.some(s=>s.key==='gpu')?'GPU 90/105°C':'')+(cfg.series.some(s=>s.key==='gpu')&&cfg.series.some(s=>s.key==='cpu')?'，':'')+(cfg.series.some(s=>s.key==='cpu')?'CPU 85/95°C':'')
+    :' · 中性功耗对比，不设健康阈值';
+  range.textContent=`当前区间 ${fmt(allMin,cfg.kind==='temp'?1:0)}–${fmt(allMax,cfg.kind==='temp'?1:0)} ${cfg.kind==='temp'?'°C':'W'}${note}`;
+  cfg.view={pad,plotW,plotH,w,h,start,latest};cv._chart=cfg;
+}
+function bindChart(cv,tipId){
+  if(cv._bound)return;cv._bound=true;const tip=document.getElementById(tipId);
+  const show=e=>{const cfg=cv._chart;if(!cfg?.view||!cfg.series.length)return;const r=cv.getBoundingClientRect(),px=e.clientX-r.x;let best=-1,dist=Infinity;
+    cfg.times.forEach((t,i)=>{if(!Number.isFinite(t))return;const x=cfg.view.pad.l+(Math.max(cfg.view.start,Math.min(cfg.view.latest,t))-cfg.view.start)/(cfg.view.latest-cfg.view.start)*cfg.view.plotW,d=Math.abs(x-px);if(d<dist){dist=d;best=i}});
+    if(best<0)return;tip.innerHTML=`<div class="tip-time">${formatTime(cfg.times[best])}</div>`+cfg.series.map(s=>`<div><b style="color:${s.color}">${s.label}</b> ${fmt(s.data[best],s.unit==='W'?0:1)}${s.unit}</div>`).join('');
+    tip.style.display='block';const wrap=cv.parentElement.getBoundingClientRect(),left=Math.max(0,Math.min(wrap.width-tip.offsetWidth,e.clientX-wrap.left+12));tip.style.left=left+'px';tip.style.top='8px';
+  };
+  cv.addEventListener('pointermove',show);cv.addEventListener('pointerdown',show);cv.addEventListener('pointerleave',()=>tip.style.display='none');
+}
+window.addEventListener('resize',()=>{if(window._lastHist)renderCharts(window._lastHist)});
+const originalRenderCharts=renderCharts;renderCharts=function(h){window._lastHist=h;originalRenderCharts(h)};
+
+tick();refreshBadges();refreshDaily();setInterval(tick,2000);setInterval(refreshBadges,10000);setInterval(refreshDaily,60000);
+</script>
+</body>
+</html>

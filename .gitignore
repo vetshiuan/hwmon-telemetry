@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 运行时数据
+hwmon.db
+hwmon.db-wal
+hwmon.db-shm
+*.log
+gpuz.csv
+
+# 本地工具产物
+.workbuddy/
+.playwright-mcp/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

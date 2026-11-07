@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0b0e14" />
+<title>硬件监控</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  color-scheme: dark;
+  --bg:#0b0e14;
+  --panel:#131822;
+  --panel2:#0f141d;
+  --line:rgba(255,255,255,.065);
+  --txt:#e8eef7;
+  --dim:#8792a4;
+  --dim2:#5d6675;
+  --blue:#3b82f6;
+  --cyan:#22d3ee;
+  --ok:#22c55e;
+  --warn:#f59e0b;
+  --bad:#ef4444;
+}
+html,body{margin:0;padding:0;overflow-x:hidden;max-width:100%}
+body{
+  background:
+    radial-gradient(1100px 520px at 12% -8%,rgba(59,130,246,.13),transparent 62%),
+    radial-gradient(820px 460px at 96% -4%,rgba(34,211,238,.08),transparent 58%),
+    var(--bg);
+  color:var(--txt);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:14px;
+  line-height:1.45;
+  min-height:100vh;
+  padding-bottom:calc(28px + env(safe-area-inset-bottom));
+  -webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums;
+  font-feature-settings:"tnum";
+}
+
+/* ---------- 顶栏 ---------- */
+.topbar{
+  position:sticky;top:0;z-index:50;
+  padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
+  display:flex;align-items:center;gap:12px;
+  background:rgba(11,14,20,.78);
+  backdrop-filter:saturate(160%) blur(14px);
+  -webkit-backdrop-filter:saturate(160%) blur(14px);
+  border-bottom:1px solid var(--line);
+  flex-wrap:wrap;
+}
+.brand{font-size:15px;font-weight:600;letter-spacing:.02em;color:#fff;flex:none}
+.brand span{color:var(--dim2);font-weight:400;font-size:11px;margin-left:8px;letter-spacing:0}
+.devices{display:flex;gap:4px;background:rgba(255,255,255,.045);padding:3px;border-radius:9px;margin-left:auto}
+.dev{
+  border:0;background:transparent;color:var(--dim);font-size:12.5px;font-weight:500;
+  padding:5px 13px;border-radius:7px;cursor:pointer;font-family:inherit;
+  transition:background .18s,color .18s;white-space:nowrap;
+}
+.dev.active{background:rgba(59,130,246,.18);color:#a9c8ff;box-shadow:inset 0 0 0 1px rgba(59,130,246,.32)}
+.live{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dim);flex:none}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(34,197,94,.16);animation:pulse 2.4s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.42}}
+
+/* ---------- 容器 ---------- */
+.wrap{max-width:1180px;margin:0 auto;padding:16px 14px 0}
+
+/* ---------- 顶置环区 ---------- */
+.hero{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px;
+  margin-bottom:18px;
+}
+@media(min-width:560px){.hero{grid-template-columns:repeat(3,1fr);gap:12px}}
+@media(min-width:820px){.hero{grid-template-columns:repeat(4,1fr);gap:14px}}
+@media(min-width:1080px){.hero{grid-template-columns:repeat(4,1fr)}}
+
+.card{
+  position:relative;
+  background:linear-gradient(180deg,rgba(255,255,255,.028),rgba(255,255,255,0)) ,var(--panel);
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:12px 8px 10px;
+  display:flex;flex-direction:column;align-items:center;
+  overflow:hidden;
+}
+.card::after{
+  content:"";position:absolute;inset:0;border-radius:15px;pointer-events:none;
+  background:radial-gradient(120% 80% at 50% -25%,rgba(59,130,246,.10),transparent 62%);
+}
+.card.off{display:none}
+
+/* 环形进度：canvas 绘制 */
+.ring{
+  width:96px;height:96px;position:relative;flex:none;
+}
+.ring canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.ring .val{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:1px;pointer-events:none;
+}
+.ring .num{font-size:clamp(17px,4.6vw,26px);font-weight:600;letter-spacing:-.02em;line-height:1.05;color:#fff}
+.ring .unit{font-size:10px;color:var(--dim2);font-weight:500;letter-spacing:.06em}
+
+.card .name{font-size:12px;color:#c3cbd8;margin-top:8px;font-weight:500;text-align:center}
+.card .meta{font-size:10.5px;color:var(--dim2);margin-top:2px;text-align:center;min-height:14px}
+.card .meta b{color:var(--dim);font-weight:500}
+
+/* ---------- 面板网格 ---------- */
+.panel-grid{display:block}
+@media(min-width:820px){
+  .panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+  .panel-grid .panel{margin-bottom:0}
+  .panel-grid .full{grid-column:1/-1}
+}
+
+/* ---------- 面板 ---------- */
+.panel{
+  background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,0)),var(--panel);
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:16px 16px 8px;
+  margin-bottom:14px;
+}
+.panel h2{
+  font-size:12px;font-weight:600;color:var(--dim);margin:0 0 12px;
+  letter-spacing:.11em;text-transform:uppercase;
+  display:flex;align-items:center;gap:8px;
+}
+.panel h2::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.row{
+  display:grid;grid-template-columns:88px 1fr 76px;
+  align-items:center;gap:10px;
+  padding:9px 0;
+  border-bottom:1px solid rgba(255,255,255,.035);
+}
+.row:last-child{border-bottom:0}
+.row .k{font-size:12.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .v{font-size:12.5px;text-align:right;color:var(--txt);font-weight:500}
+.row .v small{color:var(--dim2);font-weight:400;font-size:10.5px;margin-left:2px}
+
+.bar{height:4px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden;position:relative}
+.bar i{
+  display:block;height:100%;border-radius:3px;
+  background:linear-gradient(90deg,var(--blue),var(--cyan));
+  transition:width .5s cubic-bezier(.22,1,.36,1);
+}
+.bar i.warn{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+.bar i.bad{background:linear-gradient(90deg,#ef4444,#f87171)}
+
+/* ---------- 曲线 ---------- */
+.chart-panel{padding:16px 14px 14px}
+.chart-head{display:flex;align-items:baseline;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.chart-head .t{font-size:12.5px;color:#c3cbd8;font-weight:500}
+.chart-head .t em{font-style:normal;color:var(--dim2);font-size:11px;margin-left:6px}
+.legend{display:flex;gap:12px;margin-left:auto;font-size:11px;color:var(--dim)}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend i{width:7px;height:7px;border-radius:2px;display:block}
+canvas{width:100%;height:112px;display:block}
+
+/* ---------- 页脚 ---------- */
+.foot{
+  text-align:center;font-size:11px;color:var(--dim2);
+  padding:14px 0 4px;letter-spacing:.02em;
+}
+.foot b{color:var(--dim);font-weight:500}
+
+/* ---------- 桌面端尺寸覆盖（必须在基础的后面） ---------- */
+@media(min-width:820px){
+  .ring{width:132px;height:132px}
+  .card{padding:18px 12px 14px}
+  .card .name{font-size:13px;margin-top:10px}
+  .card .meta{font-size:11px;min-height:15px}
+}
+
+/* ---------- 小屏紧凑 ---------- */
+@media(max-width:480px){
+  .brand span{display:none}
+  .topbar{padding-left:12px;padding-right:12px;gap:8px}
+  .dev{padding:5px 10px;font-size:12px}
+  .live span{display:none}
+  .live{margin-left:2px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">硬件监控<span>HW Monitor</span></div>
+  <div class="devices">
+    <button class="dev active" data-d="desktop">台式机</button>
+    <button class="dev" data-d="laptop">笔记本</button>
+  </div>
+  <div class="live"><i></i><span id="liveTxt">实时</span></div>
+</header>
+
+<main class="wrap">
+  <section class="hero" id="hero"></section>
+
+  <div class="panel-grid">
+  <section class="panel">
+    <h2>显卡</h2>
+    <div id="gpuRows"></div>
+  </section>
+
+  <section class="panel">
+    <h2>处理器</h2>
+    <div id="cpuRows"></div>
+  </section>
+
+  <section class="panel full">
+    <h2>存储与内存</h2>
+    <div id="otherRows"></div>
+  </section>
+
+  <section class="panel chart-panel">
+    <div class="chart-head">
+      <div class="t">温度曲线<em>近 60 秒</em></div>
+      <div class="legend">
+        <span><i style="background:#3b82f6"></i>GPU 热点</span>
+        <span><i style="background:#22d3ee"></i>CPU</span>
+      </div>
+    </div>
+    <canvas id="cTemp"></canvas>
+  </section>
+
+  <section class="panel chart-panel">
+    <div class="chart-head">
+      <div class="t">功耗曲线<em>近 60 秒</em></div>
+      <div class="legend">
+        <span><i style="background:#3b82f6"></i>GPU</span>
+        <span><i style="background:#22d3ee"></i>CPU</span>
+      </div>
+    </div>
+    <canvas id="cPower"></canvas>
+  </section>
+  </div>
+
+  <div class="foot">采样间隔 <b>2s</b> · 数据源 <b>LHM + GPU-Z</b> · 原型演示，数值为模拟</div>
+</main>
+
+<script>
+/* ============ 设备定义 ============ */
+const DEV = {
+  desktop: {
+    name: '台式机', has16pin: true, gpuName: 'RTX 5090D v2',
+    gpuTdp: 575, cpuName: 'i9-13900F', cpuTdp: 219
+  },
+  laptop: {
+    name: '笔记本', has16pin: false, gpuName: 'Iris Xe 核显',
+    gpuTdp: 30, cpuName: 'i5-12500H', cpuTdp: 95
+  }
+};
+
+/* 顶置 8 环配置 */
+const HERO = [
+  { k:'gpuHot',   t:'GPU 热点',   u:'°C', max:100,  warn:76,  bad:88,  need16:false },
+  { k:'gpuCore',  t:'GPU 核心',   u:'°C', max:100,  warn:70,  bad:82,  need16:false },
+  { k:'gpuPower', t:'GPU 功耗',   u:'W',  max:575,  warn:480, bad:540, need16:false },
+  { k:'pin12v',   t:'16pin 电压', u:'V',  min:11.4, max:12.6, warnLow:11.78, badLow:11.6, invert:true, dp:2, need16:true },
+  { k:'gpuTdp',   t:'TDP 占用',   u:'%',  max:100,  warn:85,  bad:95,  need16:false },
+  { k:'cpuTemp',  t:'CPU 温度',   u:'°C', max:100,  warn:80,  bad:92,  need16:false },
+  { k:'cpuPower', t:'CPU 功耗',   u:'W',  max:219,  warn:175, bad:205, need16:false },
+  { k:'cpuVolt',  t:'CPU 电压',   u:'V',  min:0.60, max:1.50, dp:3, need16:false }
+];
+
+/* ============ 状态 ============ */
+let cur = 'desktop';
+const hist = { temp: [], power: [] };
+const N = 60;
+
+/* ============ 模拟数据 ============ */
+let t0 = Date.now();
+function noise(amp){ return (Math.random() - .5) * amp; }
+
+function sample(off){
+  const d = DEV[cur];
+  const s = (Date.now() - t0) / 1000 + (off || 0);
+  // GPU 负载周期性起伏，模拟游戏/渲染
+  const load = 0.5 + 0.42 * Math.sin(s / 13) + 0.08 * Math.sin(s / 3.1);
+  const gLoad = Math.max(0.03, Math.min(0.99, load));
+  const cLoad = Math.max(0.04, Math.min(0.95, 0.35 + 0.3 * Math.sin(s / 17 + 1.2) + 0.15 * Math.sin(s / 4.3)));
+
+  const gPow = d.gpuTdp * gLoad * (cur === 'laptop' ? 0.85 : 0.93) + noise(6);
+  const gHot = 34 + gLoad * (cur === 'laptop' ? 32 : 46) + noise(1.6);
+  const gCore = gHot - (cur === 'laptop' ? 9 : 14) + noise(1.2);
+  const cTemp = 38 + cLoad * 40 + noise(1.4);
+  const cPow = d.cpuTdp * cLoad * 0.88 + noise(3);
+  const cVolt = 0.78 + cLoad * 0.42 + noise(0.012);
+
+  return {
+    gpuHot: gHot,
+    gpuCore: gCore,
+    gpuPower: gPow,
+    pin12v: 12.14 - (gPow / d.gpuTdp) * 0.16 + noise(0.008),
+    gpuTdp: (gPow / d.gpuTdp) * 100,
+    cpuTemp: cTemp,
+    cpuPower: cPow,
+    cpuVolt: cVolt,
+    gpuClock: 2100 + gLoad * 780 + noise(20),
+    gpuMemClock: 1313,
+    gpuVram: 6.2 + gLoad * 12 + noise(0.3),
+    gpuVramTotal: 24,
+    gpuFan: Math.round(900 + gLoad * 1500 + noise(60)),
+    cpuClock: 3600 + cLoad * 1600 + noise(60),
+    cpuThreads: 24,
+    ramUsed: 13.4 + noise(0.4),
+    ramTotal: 32,
+    ramMHz: 6000,
+    diskUsed: 2841,
+    diskTotal: 4096,
+    diskTemp: 41 + noise(1.2),
+    netDown: 2.4 + Math.abs(noise(3)),
+    netUp: 0.6 + Math.abs(noise(1))
+  };
+}
+
+/* ============ 环 ============ */
+function ringPct(cfg, v){
+  const lo = cfg.min !== undefined ? cfg.min : 0;
+  const hi = cfg.max !== undefined ? cfg.max : 100;
+  return (v - lo) / (hi - lo);
+}
+function ringState(cfg, v){
+  if (cfg.invert){
+    if (v < cfg.badLow) return 'bad';
+    if (v < cfg.warnLow) return 'warn';
+    return 'ok';
+  }
+  if (cfg.bad && v >= cfg.bad) return 'bad';
+  if (cfg.warn && v >= cfg.warn) return 'warn';
+  return 'ok';
+}
+
+function renderHero(){
+  const d = DEV[cur];
+  const host = document.getElementById('hero');
+  host.innerHTML = HERO.map(cfg => {
+    const off = cfg.need16 && !d.has16pin;
+    return `<div class="card ${off ? 'off' : ''}" data-k="${cfg.k}">
+      <div class="ring">
+        <canvas></canvas>
+        <div class="val"><div class="num">--</div><div class="unit">${cfg.u}</div></div>
+      </div>
+      <div class="name">${cfg.t}</div>
+      <div class="meta"></div>
+    </div>`;
+  }).join('');
+  // 立即绘制一次底环
+  HERO.forEach(cfg => {
+    if (cfg.need16 && !d.has16pin) return;
+    const card = document.querySelector(`.card[data-k="${cfg.k}"]`);
+    if (card) drawRing(card.querySelector('.ring canvas'), 0, '#3b82f6', '#22d3ee');
+  });
+}
+
+function drawRing(cv, pct, c1, c2){
+  if (!cv) return;
+  const dpr = window.devicePixelRatio || 1;
+  const size = cv.clientWidth || 96;
+  if (!size) return;
+  if (cv.width !== Math.round(size * dpr)) {
+    cv.width = Math.round(size * dpr);
+    cv.height = Math.round(size * dpr);
+  }
+  const c = cv.getContext('2d');
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, size, size);
+
+  const lw = Math.max(5, size * 0.072);
+  const r = size / 2 - lw / 2 - 1;
+  const cx = size / 2, cy = size / 2;
+
+  // 底环
+  c.beginPath();
+  c.arc(cx, cy, r, 0, Math.PI * 2);
+  c.strokeStyle = 'rgba(255,255,255,.075)';
+  c.lineWidth = lw;
+  c.stroke();
+
+  if (pct <= 0.001) return;
+
+  // 进度弧
+  const start = -Math.PI / 2;
+  const end = start + Math.PI * 2 * pct;
+  const g = c.createLinearGradient(0, 0, size, size);
+  g.addColorStop(0, c1);
+  g.addColorStop(1, c2);
+  c.beginPath();
+  c.arc(cx, cy, r, start, end);
+  c.strokeStyle = g;
+  c.lineWidth = lw;
+  c.lineCap = 'round';
+  c.stroke();
+}
+
+function updateHero(m){
+  const d = DEV[cur];
+  HERO.forEach(cfg => {
+    if (cfg.need16 && !d.has16pin) return;
+    const card = document.querySelector(`.card[data-k="${cfg.k}"]`);
+    if (!card) return;
+    const v = m[cfg.k];
+    const dp = cfg.dp !== undefined ? cfg.dp : 1;
+    const pct = Math.max(0, Math.min(1, ringPct(cfg, v)));
+    const st = ringState(cfg, v);
+    const c1 = st === 'bad' ? '#ef4444' : st === 'warn' ? '#f59e0b' : '#3b82f6';
+    const c2 = st === 'bad' ? '#f87171' : st === 'warn' ? '#fbbf24' : '#22d3ee';
+    drawRing(card.querySelector('.ring canvas'), pct, c1, c2);
+    card.querySelector('.num').textContent = v.toFixed(dp);
+    const meta = card.querySelector('.meta');
+    const txt = metaOf(cfg.k, m, d);
+    if (meta.textContent !== txt) meta.textContent = txt;
+  });
+}
+
+function metaOf(k, m, d){
+  switch(k){
+    case 'gpuHot':   return `核心 ${m.gpuCore.toFixed(1)}°C`;
+    case 'gpuCore':  return `${m.gpuFan} RPM`;
+    case 'gpuPower': return `上限 ${d.gpuTdp} W`;
+    case 'pin12v':   return m.pin12v < 11.78 ? '压降偏大，检查线材' : '供电正常';
+    case 'gpuTdp':   return `${m.gpuPower.toFixed(0)} / ${d.gpuTdp} W`;
+    case 'cpuTemp':  return `${d.cpuName}`;
+    case 'cpuPower': return `上限 ${d.cpuTdp} W`;
+    case 'cpuVolt':  return `${(m.cpuClock/1000).toFixed(2)} GHz`;
+  }
+  return '';
+}
+
+/* ============ 详情行 ============ */
+function barRow(k, pct, valHtml, cls){
+  return `<div class="row">
+    <div class="k">${k}</div>
+    <div class="bar"><i class="${cls||''}" style="width:${Math.max(0,Math.min(100,pct*100)).toFixed(1)}%"></i></div>
+    <div class="v">${valHtml}</div>
+  </div>`;
+}
+
+function renderDetail(m){
+  const d = DEV[cur];
+  document.getElementById('gpuRows').innerHTML = [
+    barRow('核心温度', m.gpuCore/100, `${m.gpuCore.toFixed(1)}<small>°C</small>`, m.gpuCore>82?'bad':m.gpuCore>70?'warn':''),
+    barRow('核心频率', m.gpuClock/3200, `${m.gpuClock.toFixed(0)}<small>MHz</small>`),
+    barRow('显存频率', 0.55, `${m.gpuMemClock}<small>MHz</small>`),
+    barRow('显存占用', m.gpuVram/m.gpuVramTotal, `${m.gpuVram.toFixed(1)}<small>/${m.gpuVramTotal} G</small>`),
+    barRow('风扇转速', m.gpuFan/3000, `${m.gpuFan}<small>RPM</small>`),
+    barRow('型号', 1, `<span style="font-size:11.5px;color:#8792a4">${d.gpuName}</span>`)
+  ].join('');
+
+  document.getElementById('cpuRows').innerHTML = [
+    barRow('封装温度', m.cpuTemp/100, `${m.cpuTemp.toFixed(1)}<small>°C</small>`, m.cpuTemp>92?'bad':m.cpuTemp>80?'warn':''),
+    barRow('全核频率', m.cpuClock/6000, `${(m.cpuClock/1000).toFixed(2)}<small>GHz</small>`),
+    barRow('线程数', 1, `${m.cpuThreads}<small>线程</small>`),
+    barRow('型号', 1, `<span style="font-size:11.5px;color:#8792a4">${d.cpuName}</span>`)
+  ].join('');
+
+  document.getElementById('otherRows').innerHTML = [
+    barRow('内存占用', m.ramUsed/m.ramTotal, `${m.ramUsed.toFixed(1)}<small>/${m.ramTotal} G</small>`, m.ramUsed/m.ramTotal>0.9?'bad':m.ramUsed/m.ramTotal>0.75?'warn':''),
+    barRow('内存频率', m.ramMHz/8000, `${m.ramMHz}<small>MHz</small>`),
+    barRow('系统盘', m.diskUsed/m.diskTotal, `${m.diskUsed}<small>/${m.diskTotal} G</small>`, m.diskUsed/m.diskTotal>0.9?'bad':m.diskUsed/m.diskTotal>0.8?'warn':''),
+    barRow('硬盘温度', m.diskTemp/100, `${m.diskTemp.toFixed(1)}<small>°C</small>`),
+    barRow('网络下行', Math.min(1,m.netDown/20), `${m.netDown.toFixed(1)}<small>MB/s</small>`),
+    barRow('网络上行', Math.min(1,m.netUp/20), `${m.netUp.toFixed(1)}<small>MB/s</small>`)
+  ].join('');
+}
+
+/* ============ 曲线 ============ */
+function drawChart(cv, series, maxV){
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== w*dpr || cv.height !== h*dpr){
+    cv.width = w*dpr; cv.height = h*dpr;
+  }
+  const c = cv.getContext('2d');
+  c.setTransform(dpr,0,0,dpr,0,0);
+  c.clearRect(0,0,w,h);
+
+  // 网格
+  c.strokeStyle = 'rgba(255,255,255,.045)';
+  c.lineWidth = 1;
+  for (let i=0;i<=3;i++){
+    const y = (h-10) * (i/3) + 5;
+    c.beginPath(); c.moveTo(0,y); c.lineTo(w,y); c.stroke();
+  }
+
+  const pad = 5;
+  const stepX = w / (N - 1);
+  series.forEach(s => {
+    const data = s.data;
+    if (data.length < 2) return;
+    const n = data.length;
+    const x0 = w - (n - 1) * stepX;   // 新数据靠右
+    const px = i => x0 + i * stepX;
+    const py = v => (h - pad) - Math.min(1, Math.max(0, v / maxV)) * (h - pad * 2);
+
+    const grad = c.createLinearGradient(0,0,0,h);
+    grad.addColorStop(0, s.fill);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    c.beginPath();
+    data.forEach((v,i)=> i ? c.lineTo(px(i),py(v)) : c.moveTo(px(i),py(v)));
+    c.lineTo(px(n-1), h-pad);
+    c.lineTo(px(0), h-pad);
+    c.closePath();
+    c.fillStyle = grad;
+    c.fill();
+
+    c.beginPath();
+    data.forEach((v,i)=> i ? c.lineTo(px(i),py(v)) : c.moveTo(px(i),py(v)));
+    c.strokeStyle = s.color;
+    c.lineWidth = 1.8;
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    c.stroke();
+
+    // 端点
+    const lx = px(n-1), ly = py(data[n-1]);
+    c.beginPath(); c.arc(lx, ly, 2.4, 0, Math.PI*2);
+    c.fillStyle = s.color; c.fill();
+  });
+}
+
+/* ============ 主循环 ============ */
+let last = 0;
+function tick(){
+  const m = sample();
+  const now = Date.now();
+  if (now - last > 700){
+    last = now;
+    hist.temp.push(m.gpuHot); hist.temp.push(m.cpuTemp); hist.temp = hist.temp.slice(-N*2);
+    hist.power.push(m.gpuPower); hist.power.push(m.cpuPower); hist.power = hist.power.slice(-N*2);
+  }
+  updateHero(m);
+  renderDetail(m);
+
+  const tGpu = [], tCpu = [], pGpu = [], pCpu = [];
+  for (let i=0;i<hist.temp.length;i+=2){ tGpu.push(hist.temp[i]); tCpu.push(hist.temp[i+1]); }
+  for (let i=0;i<hist.power.length;i+=2){ pGpu.push(hist.power[i]); pCpu.push(hist.power[i+1]); }
+
+  drawChart(document.getElementById('cTemp'), [
+    {data:tGpu, color:'#3b82f6', fill:'rgba(59,130,246,.18)'},
+    {data:tCpu, color:'#22d3ee', fill:'rgba(34,211,238,.12)'}
+  ], 100);
+
+  drawChart(document.getElementById('cPower'), [
+    {data:pGpu, color:'#3b82f6', fill:'rgba(59,130,246,.18)'},
+    {data:pCpu, color:'#22d3ee', fill:'rgba(34,211,238,.12)'}
+  ], DEV[cur].gpuTdp);
+}
+
+/* ============ 事件 ============ */
+document.querySelectorAll('.dev').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    if (btn.dataset.d === cur) return;
+    cur = btn.dataset.d;
+    document.querySelectorAll('.dev').forEach(b=>b.classList.toggle('active', b===btn));
+    hist.temp = []; hist.power = [];
+    renderHero();
+    tick();
+  });
+});
+
+/* ============ 启动 ============ */
+renderHero();
+// 预热曲线（模拟已有 60 秒历史）
+for (let i = N - 1; i >= 0; i--){
+  const s = sample(-i * 2);
+  hist.temp.push(s.gpuHot); hist.temp.push(s.cpuTemp);
+  hist.power.push(s.gpuPower); hist.power.push(s.cpuPower);
+}
+tick();
+setInterval(tick, 2000);
+
+// 时钟
+setInterval(()=>{
+  const d = new Date();
+  document.getElementById('liveTxt').textContent =
+    d.toTimeString().slice(0,8);
+}, 1000);
+</script>
+</body>
+</html>
