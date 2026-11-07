@@ -68,7 +68,11 @@ button{font-family:inherit}
 /* 小结切换：固定各块高度 + 复用 DOM，只改文本，避免行数变化引起重排 */
 #dailyMeta{min-height:3em}
 #dailyEvents{min-height:3em}
-#dailyStats .stat{height:70px}
+#dailyStats{margin-top:14px}
+#dailyStats .stat{height:88px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:8px 6px;overflow:hidden}
+#dailyStats .stat-label,#dailyStats .stat-value,#dailyStats .stat-sub{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#dailyStats .stat-value{font-size:16px}
+#dailyStats .stat-sub{margin-top:4px}
 </style>
 </head>
 <body>

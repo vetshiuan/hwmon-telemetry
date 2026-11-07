@@ -1,199 +1,133 @@
-# hwmon-telemetry
+# hwmon-telemetry — 双机硬件遥测 + 路由器统一入口
 
-Windows 主机硬件遥测：把 LibreHardwareMonitor 和 GPU-Z 的传感器数据聚合成统一 JSON，用一个单文件网页在手机上看实时温度、功耗、电压和历史曲线；再配一个独立推送进程，只在真出故障时推企业微信。
+> 更新时间：2026-11-08
+> 当前版本：v5 / 服务端 `hwmon/0.6`
+> 统一入口：`http://10.1.1.254:8089/`
 
-零第三方依赖——`agent.py` 和 `push_monitor.py` 都只用 Python 标准库。
+台式机 + 笔记本的实时硬件遥测。浏览器**只连路由器一个地址**，即可看监控、唤醒台式、切换全屋 DNS、查看 EasyTier 节点。服务端全部是 Python 标准库或单文件前端，零第三方依赖；采集端绑定 Windows（LHM / GPU-Z / Win32 API），这是硬件限制，不能搬到路由器。
 
-## 两个阈值，两种用途
+## 访问地址
 
-这是整个项目里最反直觉、也最值得先讲的一点。
+| 用途 | 地址 |
+|---|---|
+| 统一入口（监控页） | `http://10.1.1.254:8089/` 或 `http://192.168.31.1:8089/` |
+| 工具箱 | `http://10.1.1.254:8089/tools` |
+| 静态兜底（容器挂了仍可开） | `http://10.1.1.254:8088/tools.html` |
+| 笔记本备用入口 | `http://10.1.1.251:8090/` |
+| 台式备用入口 | `http://10.1.1.252:8090/` |
 
-同一台机器，网页上的告警线和推送到手机上的告警线**故意不一样**：
-
-| 设备 / 场景 | 实测峰值 | 网页告警线 | 推送告警线 |
-|---|---|---|---|
-| 台式机跑本地大模型，GPU 满载 530W | GPU 热点 **96.4°C** | 90°C（变黄） | 108°C（不推） |
-| 笔记本 i5-12500H 满载（温度墙 100°C） | CPU **100°C** | 95°C（变红） | 不监控 |
-
-如果把网页阈值直接拿去做推送，上面两种情况会导致**天天误报**，消息很快就会被无视——那推送就白做了。
-
-所以两条线各有分工：
-
-- **网页管线盯负载**：你主动打开看的时候，机器正在满载，这时 90°C 是值得知道的信息
-- **推送管线盯故障**：手机响的时候，必须是真出事。宁可钝一点，也不能吵
-
-推送线里最有价值的一条是 **16pin 整路电压**（<11.6V 或 >12.8V）。12VHPWR 接口熔毁前通常先出现电压异常，而这个现象与 GPU 负载无关，正常状态下几乎不会误报。
-
-## 界面
-
-![台式机面板](live-desktop.png)
-
-独显机型：GPU 核心 / 热点 / 显存结温 / 16pin 电压四张大字卡，下方温度与功耗曲线同图对比。
-
-![笔记本面板](final-laptop.png)
-
-核显机型：自动隐藏不适用的 GPU 指标，只留 CPU、内存、磁盘。手机竖屏两列排布，一屏读完关键状态。
-
-![温度与功耗曲线](history-charts.png)
-
-曲线可从 4 分钟（内存环形缓冲）、1 小时、今日三档切换。图中为实际运行 1 小时的采样，能看到一次负载突降和随后的回升；缺失传感器在曲线上表现为断线，不会被补成 0。
-
-## 能力
-
-**面板**
-
-- 单一 HTML 文件，无构建、无 CDN、无前端框架
-- 健康摘要 → 大字卡 → 详情 → 曲线的四层信息密度，手机竖屏也能读
-- 温度 / 功耗曲线支持 4 分钟（内存环形缓冲）、1 小时、今日（SQLite 降采样）三档
-- 缺失传感器输出 `null`，曲线断线而不是补 0
-- 多机切换：按 URL 参数跨机 fetch，返回的设备名与目标不符时拒绝渲染
-
-**推送**
-
-- 独立进程，不依附 agent——agent 崩掉时恰恰最需要告警
-- 企业微信群机器人 / PushPlus 双通道，token 留空自动进入 dry-run 只写日志
-- 越线需连续 2 次采样确认；恢复需连续 3 次；恢复后 10 分钟内再越线不重复推
-- 心跳 30 分钟一条，有告警时自动暂停（避免互相淹没）
-- 单实例锁占用 `127.0.0.1:18090`，防重复推送
+工具箱与监控页互为同域链接，浏览器地址不会跳到其他 IP。
 
 ## 架构
 
 ```
-台式机 desktop-pc                          笔记本 laptop-pc
-├─ LHM  :8085/data.json                    ├─ LHM  :8085/data.json
-├─ GPU-Z → gpuz.csv (1Hz)                  ├─ agent.py :8090
-├─ agent.py :8090                          ├─ push_monitor.py
-└─ hwmon.db                                └─ hwmon.db
-        ↑                                          │
-        │  ←──── 虚拟局域网（EasyTier 等）─────→    │
-        │                                          │
-   手机浏览器 ←─────────────────────────────── 企业微信群
+手机（EasyTier 或家里 WiFi）
+        │  只连 10.1.1.254:8089
+        ▼
+路由器 小米 RC01（Docker + uhttpd）
+ ├─ hwmon-hub 容器 :8089    同源页面、/hw/<dev>/* 反代、状态聚合
+ ├─ uhttpd :8088            WOL / DNS / peers CGI + 静态兜底页
+ └─ EasyTier 10.1.1.254     节点数据源（Local 即路由器）
+        │  服务端转发，浏览器不直连 PC
+        ├── 笔记本 VeT-LAPTOP 10.1.1.251:8090   agent.py + push_monitor.py
+        └── 台式   VeT-PC     10.1.1.252:8090   agent.py + GPU-Z（均静默运行）
 ```
 
-两台机器各跑一个 `agent.py`。前端跨机 fetch 取数，推送器轮流轮询两台的 `/api/snapshot`。
+## 组件与部署位置
 
-推送器**只在一台机器上跑**：它主动去拉另一台的接口，被监控方零改动。代价是这台机器彻底宕机时推送会一起静默——这种情况靠「心跳突然消失」自己发现。
-
-## 快速开始
-
-| 组件 | 必需 | 用途 |
+| 位置 | 文件 | 作用 |
 |---|---|---|
-| Python 3.9+ | 是 | 运行 agent 与推送器，仅标准库 |
-| LibreHardwareMonitor | 是 | 传感器数据源，需管理员权限 |
-| GPU-Z | 可选 | 独显结温、16pin 电压/功耗，LHM 拿不到的项 |
-| 企业微信群机器人 | 可选 | 手机接收推送 |
+| 笔记本 `C:\hwsensor\` | `agent.py` `ui.html` `tools.html` `push_monitor.py` `push_config.json` | 采集、前端、企业微信推送 |
+| 台式 `C:\hwsensor\` | `agent.py` `ui.html` `start_gpuz.ps1` | 采集（含 GPU-Z CSV）、静默启动 |
+| 路由器 `/mnt/usb/hwmon-hub/` | `router_hub.py` `index.html` `monitor.html` `dns.cgi` `peers.cgi` `docker-compose.yml` `run-on-router.sh` | 统一入口、反代、CGI、部署脚本 |
 
-**1. 启动 LHM 并开启远程 Web Server**
-
-LHM 菜单 `Options → Remote Web Server → Run`，默认监听 `:8085`。
-
-> 这个菜单项必须真实点击。写配置文件无效——LHM 源码里事件是在窗口构造之后才挂上的。硬件枚举未完成时点击还会被静默吞掉。
-
-**2. 启动 agent**
-
-```bash
-python agent.py                 # 默认 0.0.0.0:8090
-python agent.py --port 8090
-python agent.py --dump          # 只打印所有传感器路径，不启服务，用于排查字段名
-```
-
-**3. 配置前端**
-
-编辑 `ui.html` 里的 `PEERS`：
-
-```js
-const PEERS=[
-  {key:'desktop',label:'台式机',device:'your-pc-name',base:'http://192.168.1.10:8090'},
-  {key:'laptop',label:'笔记本',device:'your-laptop-name',base:'http://192.168.1.11:8090'}
-];
-```
-
-`device` 必须与 `socket.gethostname()` 一致，否则前端判定「设备身份不匹配」并拒绝渲染。
-
-**4. GPU-Z（可选）**
-
-`Sensors` 页勾选 `Log to file`，路径设为 `C:\hwsensor\gpuz.csv`（或改 `agent.py` 的 `GPZ_CSV`）。列按表头文本匹配，不依赖固定下标；日志超过 10 秒未更新视为失效，不覆盖 LHM 的读数。
-
-**5. 推送器（可选）**
-
-```bash
-cp push_config.example.json push_config.json   # 然后填入 webhook
-python push_monitor.py                          # 前台调试
-pythonw push_monitor.py                         # 后台无窗口
-```
-
-Webhook 取值路径（企业微信 v4.1.41 起入口改名）：内部群聊 → 右上角 `⋯` → **消息推送** → 添加 → 点开刚建的机器人 → Webhook 地址。
-
-> 搜「群机器人」找不到是正常的，它已经改名叫「消息推送」。
-> Webhook 地址等同密码，泄露后任何人都能往群里发消息——`push_config.json` 已在 `.gitignore` 中。
-
-自启动（无窗口）：
-
-```powershell
-# 注册表 HKCU\Software\Microsoft\Windows\CurrentVersion\Run 添加一项：
-#   HWMon-Push  →  pythonw.exe "C:\hwsensor\push_monitor.py"
-```
+笔记本与台式的 `agent.py` 都监听 `0.0.0.0:8090`；台式计划任务 `HWMon-Agent` 用 `pythonw.exe` 静默启动，GPU-Z 由 `start_gpuz.ps1` 以 `-WindowStyle Hidden` + `ShowWindow` 静默启动。
 
 ## 接口
 
-| 端点 | 说明 |
+**PC 上的 agent.py**
+
+| 路径 | 说明 |
 |---|---|
-| `GET /` | 前端页面 |
-| `GET /api/snapshot` | 当前快照 + `health` / `alerts` / `capabilities` / `source_meta` |
-| `GET /api/history` | 最近约 4 分钟内存曲线（120 点，2 秒采样） |
-| `GET /api/history?window=1h` | 最近 1 小时，SQLite 按时间桶降采样 |
-| `GET /api/history?window=today` | 今日 00:00 起 |
-| `GET /api/daily?date=YYYY-MM-DD` | 当日统计：min/avg/max、超阈值累计秒数、采样覆盖率 |
-| `GET /health` | 精简健康状态，快照过期时 `ok=false` |
+| `GET /api/snapshot` | 当前快照，含 `health` / `alerts` / `capabilities` / `source_meta` |
+| `GET /api/history?window=5m\|1h\|today` | 曲线数据（5m 起走 SQLite） |
+| `GET /api/summary?window=5m\|1h\|today` | 小结：min/avg/max、采样数、覆盖率、阈值以上累计秒数 |
+| `GET /api/daily` | 兼容旧页面的今日统计 |
+| `GET /health` | 真实健康状态与快照年龄 |
+| `GET /tools`、`GET /api/easytier` | 笔记本上的工具页与节点列表 |
+| `POST /api/wol` | 代理路由器 WOL（60 秒防抖） |
 
-网页告警分级（`ALERT_RULES`，属产品预警策略，非硬件官方损坏限值）：
+**路由器 hub（`:8089`）**
 
-| 指标 | 预警 | 严重 |
-|---|---|---|
-| GPU 核心 | ≥80°C | ≥90°C（立即生效，不等待确认） |
-| GPU 热点 | ≥90°C | ≥105°C |
-| GPU 显存结温 | ≥90°C | ≥100°C |
-| CPU 封装 / 核心最高 | ≥85°C | ≥95°C |
-| 16pin 整路电压 | ≤11.8V | <11.4V 或 >12.6V |
-| 内存占用 | ≥75% | ≥90% |
-| 磁盘占用 | ≥80% | ≥90% |
-
-普通温度越限需连续 3 个采样才激活，恢复带 2°C 回差，用于抑制毛刺。
-
-## 文件
-
-| 文件 | 说明 |
+| 路径 | 说明 |
 |---|---|
-| `agent.py` | 采集 + HTTP 服务 + SQLite，版本 `hwmon/0.5` |
-| `ui.html` | 单文件前端，Canvas 绘制圆环与曲线 |
-| `push_monitor.py` | 推送器：轮询、状态机、双通道发送 |
-| `push_config.example.json` | 配置模板，复制为 `push_config.json` 后填 webhook |
-| `test_agent.py` / `test_push.py` | 后端与推送状态机回归测试 |
-| `部署说明.md` | 安装、重启、更新、排查 |
-| `推送说明.md` | 推送架构、阈值依据、排障 |
-| `交接文档.md` | 接口契约、前端结构、走过的坑 |
+| `GET /`、`/monitor` | 监控页 `monitor.html`（`PEERS.base` 为 `/hw/desktop`、`/hw/laptop`） |
+| `GET /tools` | 工具页 |
+| `GET /hw/<dev>/*` | 反代到对应 PC 的 agent，query 透传；离线返回结构化 503 |
+| `GET /api/status` | 两台 PC 在线状态 |
+| `GET /api/easytier` | 节点表，带 `viewer_ip` 用于标记「本机」 |
+| `GET\|POST /api/dns` | 反代 DNS 切换 CGI |
+| `POST /wol` | 反代 WOL CGI |
 
-```bash
-python -m unittest -v test_agent
-python -m unittest -v test_push
-```
+**路由器 uhttpd CGI（`:8088`，不依赖容器）**
 
-## 已知限制
+| 路径 | 说明 |
+|---|---|
+| `/cgi-bin/wol` | 发送 WOL 魔术包 |
+| `/cgi-bin/peers` | 路由器本地 `easytier-cli -o json peer` |
+| `/cgi-bin/dns?action=status\|fallback\|restore` | 全屋 DNS 状态与切换 |
 
-- **16pin 只能读整路**。per-pin 需要显卡自带分路采样电路（如 ASUS ROG Astral），软件层做不到
-- 历史数据各机本地 SQLite，保留 7 天，未做跨设备汇总
-- 推送器自身崩溃不会被通知，只能靠心跳消失判断
-- 只在一台机器跑推送，那台宕机则全线静默
-- 移动端是普通 HTTP 页面，做 PWA 需要 HTTPS
-- 核显机型没有独立 GPU 温度传感器，属硬件限制，页面会隐藏空指标
+## 配置与脱敏
 
-## 踩过的坑
+- **`push_config.json` 含真实企业微信 webhook，绝不入库**；`.gitignore` 已排除配置、日志、SQLite、缓存、备份与压缩包。
+- 仓库只放 `push_config.example.json`（`wecom_webhook` / `pushplus_token` 为空）。
+- `.gitattributes` 强制 `.cgi` / `.sh` / `.py` / `.html` 使用 LF，避免 Windows clone 后 CRLF 让路由器脚本无法执行。
+- 关键配置：`daily_report=true`、`daily_report_time=21:00`；desktop `offline_alert=false`（台式不常开，离线不推）、`source_alert=true`（GPU-Z 数据缺失推警告）。
 
-完整 11 条见 `交接文档.md`「环境坑」一节，摘几条最容易反复踩的：
+## 推送策略
 
-- **SQLite 的 `with connection` 不关闭连接**，Windows 下会导致数据库文件一直被占用 → 必须用显式 `db_session()`
-- **LHM 的 Memory Used/Available 含页面文件**，两者相加不等于物理内存 → 改用 `GlobalMemoryStatusEx`
-- **Dark Reader 类扩展会改写 computed color**，本地验证颜色必须用无扩展的浏览器，否则纯绿会被压成灰
-- **圆环只能用 canvas**。SVG 和 CSS `conic-gradient` 在部分 Chromium 环境渲染不稳定
-- **Edge headless 有最小窗口宽度**（约 500px），测窄屏要用 Playwright 的 `setViewportSize`
-- **计划任务里启动 WorkBuddy 内置 Python 会 `0xC0000142`** → 自启动改用注册表 Run + `pythonw.exe`
+- 每天 21:00 一条日报，`push_state.json` 防止重启后重复补推；日报兼作「推送器还活着」的信号。
+- 保留：越线告警、持续告警（5 分钟重复）、恢复、离线/重新在线（台式离线静默）。
+- GPU-Z 数据缺失：仅在「有→无 / 无→有」时各推一条 `【警告】` / `【恢复】`，长期缺失不刷屏，重启后首次观测不推。
+- **推送阈值与网页告警分离**：网页 GPU 热点 90°C 预警是负载提示，推送线 108°C 才是故障判断；笔记本 CPU 常态 100°C 不监控。
+
+## DNS 应急
+
+工具页两个按钮走 `/cgi-bin/dns`（uhttpd CGI），容器挂了也能用：
+
+- **回退（保底）**：删掉 `127.0.0.1#5353` 上游，dnsmasq 自动改用 `/tmp/resolv.conf.auto` 里的运营商 DNS，不断网。
+- **恢复 AdGuard**：还原 `server=127.0.0.1#5353`、`strictorder=1`、`allservers=0`。
+- 保险措施：只接受 POST（GET 伪造切换只返回状态）、切换前预检上游文件非空、`uci commit` 后校验模式不符就不重启 dnsmasq、10 秒冷却与原子锁、基准快照 `/mnt/usb/hwmon-hub/dhcp.adguard.bak`、页面二次确认。
+
+切换会重启 dnsmasq，全屋 DNS 中断几秒，网络连接不断。
+
+## 前端要点
+
+- **切换小结不重排**：切换期间画面完全不动，数据到达后复用 DOM 只改 `textContent`；固定 `dailyMeta` / `dailyEvents` / 卡片高度，卡片文本居中、单行省略。
+- 曲线刷新从 `tick()` 拆成 `refreshCharts()`，切换时间范围只刷曲线，不重绘快照区。
+- 两页顶栏对称：`硬件监控 · 实时数据` + 「工具」，`硬件监控 · 工具箱` + 「← 返回监控」；运行模式改为页脚小字。
+- 设备离线时清空旧详情与曲线，不显示上一台设备的数据。
+
+## 备份与回滚
+
+| 位置 | 备份 |
+|---|---|
+| 台式 | `C:\hwsensor\HWMon-Agent.task.backup.xml`、`start_gpuz.ps1.bak-20261108` |
+| 路由器 | `/mnt/usb/hwmon-hub/dhcp.adguard.bak` |
+| 笔记本 | `C:\hwsensor\_backup_*`、项目 `.workbuddy\backups\` |
+
+回滚：覆盖对应文件并重启服务即可；数据库结构未变，不需要处理 `hwmon.db`。
+
+## 已知限制 / 待办
+
+- 传感器只能本机读取，两台 PC 的 agent 必须保留；笔记本宕机时推送会停（靠日报消失发现），但路由器上的工具页、唤醒与 DNS 应急仍可用。
+- `8088` / `8089` 目前无认证，仅内网可达；可选加 token。
+- 台式不常开，离线属正常状态；唤醒按钮在工具页。
+- 仓库内 `交接文档.md` / `推送说明.md` / `部署说明.md` 是早期 v4.1 的记录，**以本 README 为准**。
+
+## 版本记录
+
+| 日期 | 内容 |
+|---|---|
+| 2026-11-07 | v5：小结跟随时间按钮、用日报替代 30 分钟心跳、新增 `/api/summary` |
+| 2026-11-08 | 路由器统一入口（同域双页 + 反代）、WOL/DNS/peers CGI、台式与 GPU-Z 静默、台式离线静默、GPU-Z 缺失微信警告、EasyTier 数据源改为路由器本地、小结防重排与卡片居中、GitHub 同步 |
