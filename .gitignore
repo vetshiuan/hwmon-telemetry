@@ -1,24 +1,9 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-venv/
-
-# 运行时数据
-hwmon.db
-hwmon.db-wal
-hwmon.db-shm
-*.log
-gpuz.csv
-
-# 真实推送配置（含 Webhook 密钥，等同密码，绝不入库）
 push_config.json
-
-# 本地工具产物
+*.log
+*.db
+*.db-wal
+*.db-shm
+__pycache__/
+*.pyc
 .workbuddy/
-.playwright-mcp/
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
+*.zip

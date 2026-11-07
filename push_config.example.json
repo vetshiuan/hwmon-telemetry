@@ -3,7 +3,8 @@
   "wecom_webhook": "",
   "pushplus_token": "",
   "poll_seconds": 30,
-  "heartbeat_minutes": 30,
+  "daily_report": true,
+  "daily_report_time": "21:00",
   "alert_repeat_minutes": 5,
   "confirm_samples": 2,
   "recover_samples": 3,
@@ -12,8 +13,10 @@
     {
       "id": "desktop",
       "name": "台式机",
-      "url": "http://192.168.1.10:8090",
+      "url": "http://10.1.1.252:8090",
       "enabled": true,
+      "offline_alert": false,
+      "source_alert": true,
       "rules": [
         {
           "key": "gpu.hot",

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-硬件监控推送器 — 轮询两台 agent，按独立阈值推送告警与心跳。
+硬件监控推送器 — 轮询两台 agent，只在真故障时推送，另加每天一条日报。
 
 设计要点
 --------
 1. 独立进程运行，不依附 agent.py：agent 崩掉时恰恰最需要告警。
 2. 推送阈值独立于网页 ALERT_RULES：网页要"早提示"，推送要"真出事才响"。
    跑大模型 GPU 热点 96°C 属正常，推送线设在 108°C。
-3. 心跳 30 分钟一条；有告警时自动加密到 5 分钟一条，直到恢复。
+3. 不发心跳：越线告警、持续告警（5 分钟重复）、恢复、离线、重新在线才推。
+   心跳的替代是每天一条日报——它同时充当"推送器还活着"的信号。
 4. token 为空时进入 dry-run：只写日志不发送，便于先跑通逻辑。
 
 用法
@@ -31,6 +32,7 @@ from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, "push_config.json")
+STATE_PATH = os.path.join(BASE_DIR, "push_state.json")
 LOG_PATH = os.path.join(BASE_DIR, "push_monitor.log")
 
 POLL_SECONDS = 30
@@ -41,7 +43,8 @@ DEFAULT_CONFIG = {
     "wecom_webhook": "",
     "pushplus_token": "",
     "poll_seconds": 30,
-    "heartbeat_minutes": 30,
+    "daily_report": True,
+    "daily_report_time": "21:00",
     "alert_repeat_minutes": 5,
     "confirm_samples": 2,
     "recover_samples": 3,
@@ -50,8 +53,12 @@ DEFAULT_CONFIG = {
         {
             "id": "desktop",
             "name": "台式机",
-            "url": "http://192.168.1.10:8090",
+            "url": "http://10.1.1.252:8090",
             "enabled": True,
+            # 台式机不常开：离线/重新在线不推送，日报里照常记录状态
+            "offline_alert": False,
+            # GPU-Z 数据缺失按警告级推送；用户会主动关 GPU-Z，故只在状态变化时推
+            "source_alert": True,
             "rules": [
                 {"key": "gpu.hot", "label": "GPU 热点", "op": ">=", "value": 108, "unit": "°C"},
                 {"key": "gpu.core", "label": "GPU 核心", "op": ">=", "value": 88, "unit": "°C"},
@@ -120,6 +127,25 @@ def load_config():
     return cfg
 
 
+# ---------------- 运行状态（跨重启保留） ----------------
+
+def load_state():
+    try:
+        with open(STATE_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_state(data):
+    try:
+        with open(STATE_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        log("写状态文件失败: %s" % e)
+
+
 # ---------------- 取数 ----------------
 
 def fetch_json(url, timeout=8):
@@ -179,7 +205,7 @@ def wecom_send(webhook, title, content, timeout=12):
             % (title, content.replace("\n", " ")[:120]))
         return False
     color = "comment"
-    if "【告警】" in title or "【离线】" in title:
+    if any(k in title for k in ("【告警】", "【离线】", "【警告】")):
         color = "warning"
     elif "【恢复】" in title:
         color = "info"
@@ -284,12 +310,72 @@ class MetricState:
 
 # ---------------- 主循环 ----------------
 
+def blank_stats():
+    """一台设备当天的统计槽位。"""
+    return {"cpu_max": None, "gpu_hot_max": None, "gpu_power_max": None,
+            "mem_max": None, "alerts": 0, "offline": 0}
+
+
+def build_report(devices, stats, offline=None):
+    """生成日报正文（不含标题）。离线静默的设备仍如实显示在线状态。"""
+    lines = []
+    total_alerts = 0
+    for d in devices:
+        s = stats.get(d["id"]) or blank_stats()
+        total_alerts += s["alerts"]
+        parts = []
+        if s["gpu_hot_max"] is not None:
+            parts.append("GPU 热点最高 %s" % fmt(s["gpu_hot_max"], "°C"))
+        if s["cpu_max"] is not None:
+            parts.append("CPU 最高 %s" % fmt(s["cpu_max"], "°C"))
+        if s["gpu_power_max"] is not None:
+            parts.append("GPU 峰值 %s" % fmt(s["gpu_power_max"], "W", 0))
+        if s["mem_max"] is not None:
+            parts.append("内存最高 %s" % fmt(s["mem_max"], "%"))
+        if not parts:
+            parts.append("当天未取到数据")
+        if s["offline"]:
+            parts.append("离线 %d 次" % s["offline"])
+        if offline is not None:
+            parts.append("当前离线" if offline.get(d["id"], {}).get("active") else "当前在线")
+        lines.append("%s  %s" % (d.get("name", d["id"]), " · ".join(parts)))
+    lines.append("越线告警 %d 次" % total_alerts if total_alerts else "当天没有越线告警")
+    lines.append("推送器运行正常")
+    return "\n".join(lines)
+
+
 def fmt(value, unit="", dp=1):
     if value is None:
         return "--"
     if isinstance(value, float):
         return ("%." + str(dp) + "f") % value + unit
     return str(value) + unit
+
+
+def source_alert_event(dev_id, name, snap, state, enabled):
+    """GPU-Z 数据缺失状态机：返回 (标题, 正文) 或 None，并更新 state。
+
+    只在「有 -> 无 / 无 -> 有」时返回消息，长期缺失不重复推；
+    首次观测（prev is None）不推，避免重启推送器就发一条。
+    """
+    if not enabled:
+        return None
+    expected = (snap.get("capabilities") or {}).get(
+        "gpuz_expected", dev_id == "desktop")
+    if not expected:
+        return None
+    gpuz_ok = bool((snap.get("sources") or {}).get("gpuz"))
+    prev = state.get(dev_id)
+    state[dev_id] = gpuz_ok
+    stamp = datetime.now().strftime("%m-%d %H:%M")
+    if prev is True and not gpuz_ok:
+        return ("【警告】%s GPU-Z 数据中断" % name,
+                "%s 的 GPU-Z 数据不可用，16pin 电压等读数缺失。\n"
+                "若是你主动关闭 GPU-Z，可忽略本条。\n时间: %s" % (name, stamp))
+    if prev is False and gpuz_ok:
+        return ("【恢复】%s GPU-Z 数据已恢复" % name,
+                "%s 的 GPU-Z 数据已恢复。\n时间: %s" % (name, stamp))
+    return None
 
 
 def acquire_single_instance(port=18090):
@@ -316,11 +402,12 @@ def main():
     cfg = load_config()
     init_notifier(cfg)
     poll = max(10, int(cfg.get("poll_seconds", POLL_SECONDS)))
-    hb_seconds = max(5, int(cfg.get("heartbeat_minutes", 30))) * 60
     repeat_seconds = max(1, int(cfg.get("alert_repeat_minutes", 5))) * 60
     confirm = max(1, int(cfg.get("confirm_samples", 2)))
     recover = max(1, int(cfg.get("recover_samples", 3)))
     flap_guard = int(cfg.get("flap_guard_minutes", 10))
+    report_enabled = bool(cfg.get("daily_report", True))
+    report_at = str(cfg.get("daily_report_time", "21:00")).strip() or "21:00"
 
     devices = [d for d in cfg.get("devices", []) if d.get("enabled", True)]
     if not devices:
@@ -328,6 +415,7 @@ def main():
         return
 
     states = {}
+    source_state = {}
     last_snap = {}
     offline = {d["id"]: {"fails": 0, "active": False} for d in devices}
 
@@ -338,46 +426,75 @@ def main():
         for i, _ in enumerate(d.get("rules") or []):
             states[key_of(d["id"], i)] = MetricState()
 
-    log("推送器启动：%d 台设备，轮询 %ds，心跳 %dmin，告警重复 %dmin"
-        % (len(devices), poll, hb_seconds // 60, repeat_seconds // 60))
+    log("推送器启动：%d 台设备，轮询 %ds，告警重复 %dmin，日报 %s"
+        % (len(devices), poll, repeat_seconds // 60,
+           ("每天 " + report_at) if report_enabled else "关闭"))
+    silent = [d.get("name", d["id"]) for d in devices if not d.get("offline_alert", True)]
+    if silent:
+        log("离线静默设备：%s（不推离线/重连，日报仍记录状态）" % "、".join(silent))
 
-    last_heartbeat = 0.0
-    first_round = True
+    # ---- 日报统计：进程内累积，跨天重置 ----
+    stats = {d["id"]: blank_stats() for d in devices}
+    stats_day = datetime.now().date()
+    state = load_state()
+    last_report_day = None
+    if state.get("last_report_day"):
+        try:
+            last_report_day = datetime.strptime(state["last_report_day"], "%Y-%m-%d").date()
+            log("当天日报已发过（%s），本次重启不补推" % state["last_report_day"])
+        except ValueError:
+            last_report_day = None
+
+    def bump(dev_id, key, value):
+        if isinstance(value, (int, float)):
+            cur = stats[dev_id][key]
+            if cur is None or value > cur:
+                stats[dev_id][key] = value
 
     while True:
         now = time.time()
-        any_alert = False
-        summary_lines = []
         alert_lines = []
 
         for d in devices:
             dev_id = d["id"]
             name = d.get("name", dev_id)
+            # 不常开的设备只记录离线状态，不推消息；日报仍是唯一存活信号
+            offline_alert = bool(d.get("offline_alert", True))
             try:
                 snap = fetch_json(d["url"].rstrip("/") + "/api/snapshot")
                 offline[dev_id]["fails"] = 0
                 if offline[dev_id]["active"]:
                     offline[dev_id]["active"] = False
-                    notify("【恢复】%s 重新在线" % name,
-                             "%s 于 %s 恢复响应。\n设备: %s"
-                             % (name, datetime.now().strftime("%m-%d %H:%M"), snap.get("device")))
+                    if offline_alert:
+                        notify("【恢复】%s 重新在线" % name,
+                                 "%s 于 %s 恢复响应。\n设备: %s"
+                                 % (name, datetime.now().strftime("%m-%d %H:%M"), snap.get("device")))
                 last_snap[dev_id] = snap
             except Exception as e:
                 offline[dev_id]["fails"] += 1
                 if offline[dev_id]["fails"] >= 3 and not offline[dev_id]["active"]:
                     offline[dev_id]["active"] = True
-                    notify("【离线】%s 采集服务失联" % name,
-                             "%s 连续 %d 次请求失败（约 %d 分钟）。\n最后一次错误: %s\n请检查 agent.py 是否在运行。"
-                             % (name, offline[dev_id]["fails"],
-                                offline[dev_id]["fails"] * poll // 60, e))
-                summary_lines.append("%s  离线" % name)
-                any_alert = any_alert or offline[dev_id]["active"]
+                    stats[dev_id]["offline"] += 1
+                    if offline_alert:
+                        notify("【离线】%s 采集服务失联" % name,
+                                 "%s 连续 %d 次请求失败（约 %d 分钟）。\n最后一次错误: %s\n请检查 agent.py 是否在运行。"
+                                 % (name, offline[dev_id]["fails"],
+                                    offline[dev_id]["fails"] * poll // 60, e))
                 continue
 
             snap = last_snap[dev_id]
+
+            # 数据源缺失：只在「有 -> 无 / 无 -> 有」时推一条警告或恢复
+            ev = source_alert_event(dev_id, name, snap, source_state,
+                                    d.get("source_alert"))
+            if ev:
+                notify(*ev)
+
+            bump(dev_id, "cpu_max", dig(snap, "cpu.temp"))
+            bump(dev_id, "gpu_hot_max", dig(snap, "gpu.hot"))
+            bump(dev_id, "gpu_power_max", dig(snap, "gpu.power"))
+            bump(dev_id, "mem_max", dig(snap, "mem.pct"))
             rules = d.get("rules") or []
-            dev_alert = False
-            parts = []
 
             for i, rule in enumerate(rules):
                 st = states[key_of(dev_id, i)]
@@ -385,10 +502,8 @@ def main():
                 violated = compare(val, rule["op"], rule["value"])
                 ev = st.update(violated, now, confirm, recover, flap_guard)
 
-                if ev in ("enter", "repeat"):
-                    pass
                 if ev == "enter":
-                    dev_alert = True
+                    stats[dev_id]["alerts"] += 1
                     alert_lines.append(
                         "%s %s %s%s（推送线 %s%s）\n设备: %s"
                         % (name, rule["label"], fmt(val), rule.get("unit", ""),
@@ -401,41 +516,35 @@ def main():
                                 snap.get("device")))
                 elif st.due_repeat(now, repeat_seconds):
                     st.last_push = now
-                    dev_alert = True
                     alert_lines.append(
                         "%s %s %s%s 持续（推送线 %s%s）"
                         % (name, rule["label"], fmt(val), rule.get("unit", ""),
                            rule["op"], fmt(rule["value"])))
-
-                if st.active:
-                    dev_alert = True
-
-            any_alert = any_alert or dev_alert
-            gpu_part = ""
-            if dig(snap, "gpu.hot") is not None:
-                gpu_part = " GPU %s / %s" % (fmt(dig(snap, "gpu.hot"), "°C"),
-                                             fmt(dig(snap, "gpu.power"), "W", 0))
-            cpu_part = " CPU %s" % fmt(dig(snap, "cpu.temp"), "°C")
-            mem_part = " 内存 %s" % fmt(dig(snap, "mem.pct"), "%")
-            parts.append(name + cpu_part + gpu_part + mem_part)
-            summary_lines.append(parts[0])
 
         if alert_lines:
             notify("【告警】硬件指标越线",
                      "\n\n".join(alert_lines) + "\n\n时间: %s"
                      % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
-        due_hb = (now - last_heartbeat) >= hb_seconds
-        if due_hb and not any_alert and not first_round:
-            notify("【心跳】硬件状态正常",
-                     "\n".join(summary_lines) + "\n\n时间: %s"
-                     % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            last_heartbeat = now
-        elif first_round:
-            log("首轮采样完成：%s" % " | ".join(summary_lines))
-            last_heartbeat = now
+        # ---- 跨天重置日报统计 ----
+        today = datetime.now().date()
+        if today != stats_day:
+            stats_day = today
+            stats = {d["id"]: blank_stats() for d in devices}
+            log("跨天，日报统计已重置")
 
-        first_round = False
+        # ---- 每天一条日报（兼作推送器存活信号）----
+        if report_enabled:
+            hhmm = datetime.now().strftime("%H:%M")
+            if hhmm >= report_at and last_report_day != today:
+                # 无论推送成败都记下日期：失败时重试会变成每 30 秒刷屏
+                last_report_day = today
+                ok = notify("【日报】硬件监控 %s" % today.strftime("%m-%d"),
+                            build_report(devices, stats, offline))
+                if ok:
+                    state["last_report_day"] = today.isoformat()
+                    save_state(state)
+
         time.sleep(poll)
 
 

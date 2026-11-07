@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0b0e14" />
+<title>硬件监控 · 工具箱</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{color-scheme:dark;--bg:#0b0e14;--panel:#131822;--line:rgba(255,255,255,.075);--txt:#e8eef7;--dim:#94a0b2;--dim2:#667286;--blue:#60a5fa;--ok:#34d399;--warn:#fbbf24;--bad:#fb7185}
+html,body{margin:0;padding:0;max-width:100%;overflow-x:hidden}
+body{background:radial-gradient(900px 460px at 12% -10%,rgba(59,130,246,.12),transparent 62%),var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.45;min-height:100vh;padding-bottom:calc(28px + env(safe-area-inset-bottom));font-variant-numeric:tabular-nums}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:rgba(11,14,20,.9);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.brand{font-size:15px;font-weight:650;color:#fff;flex:none}.brand span{color:var(--dim2);font-weight:400;font-size:11px;margin-left:8px}
+.tool-link{margin-left:auto;flex:none;text-decoration:none;color:var(--dim);font-size:12.5px;padding:6px 11px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.045);white-space:nowrap}
+.tool-link:active{color:#bfdbfe;background:rgba(96,165,250,.16)}
+.tag.src{background:rgba(255,255,255,.08);color:var(--dim)}
+.wrap{max-width:900px;margin:0 auto;padding:16px 14px 0}
+.panel{background:linear-gradient(180deg,rgba(255,255,255,.018),transparent),var(--panel);border:1px solid var(--line);border-radius:15px;padding:16px;margin-bottom:14px}
+.panel h2{font-size:12px;font-weight:650;color:#aeb9c9;margin:0 0 12px;letter-spacing:.09em;display:flex;align-items:center;gap:8px}
+.panel h2::after{content:"";flex:1;height:1px;background:var(--line)}
+.nodes{display:flex;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--dim)}
+.node{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:rgba(255,255,255,.02)}
+.node i{width:7px;height:7px;border-radius:50%;background:var(--dim2)}
+.node.on i{background:var(--ok);box-shadow:0 0 0 3px rgba(52,211,153,.12)}
+.node.on{color:#c6d0de}
+.wol{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.wol .info{flex:1;min-width:180px}
+.state{font-size:20px;font-weight:650;display:flex;align-items:center;gap:9px;color:var(--dim)}
+.state i{width:9px;height:9px;border-radius:50%;background:var(--dim2);flex:none}
+.state.ok{color:var(--ok)}.state.ok i{background:var(--ok);box-shadow:0 0 0 4px rgba(52,211,153,.13)}
+.state.off{color:var(--dim2)}.state.off i{background:var(--dim2)}
+.state.wait{color:var(--warn)}.state.wait i{background:var(--warn)}
+.sub{font-size:11.5px;color:var(--dim2);margin-top:5px}
+.btn{border:1px solid rgba(96,165,250,.35);background:rgba(96,165,250,.16);color:#bfdbfe;font-family:inherit;font-size:14px;font-weight:600;padding:12px 26px;border-radius:11px;cursor:pointer;white-space:nowrap;min-width:104px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.dnsbtns{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.dnsbtns .btn{flex:1;min-width:140px;font-size:13px;padding:11px 14px}
+.btn.danger{border-color:rgba(251,113,133,.4);background:rgba(251,113,133,.14);color:#fecdd3}
+.hint{font-size:11.5px;color:var(--dim);margin-top:12px;line-height:1.6;min-height:18px}
+.hint.err{color:var(--bad)}.hint.ok{color:var(--ok)}
+.links{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.link{display:block;text-decoration:none;border:1px solid var(--line);background:rgba(255,255,255,.02);border-radius:12px;padding:14px}
+.link b{display:block;font-size:14px;color:#fff;font-weight:650}
+.link span{display:block;font-size:11px;color:var(--dim2);margin-top:5px;line-height:1.5}
+.link em{font-style:normal;color:var(--blue);font-size:11px;display:block;margin-top:9px}
+.link.off{opacity:.42;pointer-events:none}
+.meta{font-size:11px;color:var(--dim2);margin:-4px 0 12px;line-height:1.5}
+.peers{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:9px}
+.peer{border:1px solid rgba(255,255,255,.055);background:rgba(255,255,255,.018);border-radius:11px;padding:11px 12px;min-width:0}
+.peer.local{border-color:rgba(96,165,250,.35);background:rgba(96,165,250,.07)}
+.peer .l1{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.peer .hn{font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.peer .ip{font-size:11px;color:var(--blue);margin-left:auto;white-space:nowrap}
+.peer .l2{display:flex;gap:6px 12px;flex-wrap:wrap;font-size:11px;color:var(--dim);margin-top:7px}
+.peer .l2 b{color:#c3cbd8;font-weight:550}
+.tag{font-size:10px;padding:1px 6px;border-radius:5px;background:rgba(52,211,153,.14);color:var(--ok)}
+.tag.relay{background:rgba(251,191,36,.14);color:var(--warn)}
+.empty{padding:18px 0;text-align:center;color:var(--dim2);font-size:12px}
+.foot{text-align:center;font-size:11px;color:var(--dim2);padding:6px 0 4px;line-height:1.7}
+@media(max-width:600px){.topbar{padding-left:12px;padding-right:12px}.brand span{display:none}.wol .info{min-width:140px}.btn{flex:1}.peer .ip{margin-left:0}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">硬件监控<span>工具箱</span></div>
+  <a class="tool-link" id="backLink" href="/">← 返回监控</a>
+</header>
+<main class="wrap">
+  <section class="panel">
+    <h2>网络与设备</h2>
+    <div class="nodes" id="nodes">
+      <span class="node"><i></i><span>检测中…</span></span>
+    </div>
+    <div class="hint" id="netHint">路由器承载本页；笔记本在线时提供完整监控与 EasyTier 数据。</div>
+  </section>
+
+  <section class="panel">
+    <h2>唤醒台式机</h2>
+    <div class="wol">
+      <div class="info">
+        <div class="state" id="pcState"><i></i><span>检测中…</span></div>
+        <div class="sub">VeT-PC · 10.1.1.252 · 路由器 WOL</div>
+      </div>
+      <button class="btn" id="wolBtn">唤醒</button>
+    </div>
+    <div class="hint" id="wolHint">台式机不常开，离线属正常状态；唤醒功能不依赖笔记本。</div>
+  </section>
+
+  <section class="panel">
+    <h2>入口</h2>
+    <div class="links" id="links"></div>
+    <div class="hint" id="linkHint">入口只是跳转，不代理内容；笔记本离线时其上的服务无法访问。</div>
+  </section>
+
+  <section class="panel">
+    <h2>DNS 应急</h2>
+    <div class="wol">
+      <div class="info">
+        <div class="state" id="dnsState"><i></i><span>检测中…</span></div>
+        <div class="sub" id="dnsSub">AdGuard 模式：全屋去广告 · 保底模式：直连运营商 DNS</div>
+      </div>
+    </div>
+    <div class="dnsbtns">
+      <button class="btn danger" id="dnsFallback">回退（保底）</button>
+      <button class="btn" id="dnsRestore">恢复 AdGuard</button>
+    </div>
+    <div class="hint" id="dnsHint">切换会重启 dnsmasq，全屋 DNS 中断几秒，网络连接不断。按钮本身跑在路由器 uhttpd 上，不依赖 Docker 容器。</div>
+  </section>
+
+  <section class="panel">
+    <h2>EasyTier 节点</h2>
+    <div class="meta" id="etMeta">正在读取… · 每 10 秒刷新</div>
+    <div class="peers" id="peerList"><div class="empty">正在读取节点信息…</div></div>
+  </section>
+  <div class="foot">硬件数据始终来自两台 PC 本身；笔记本离线时仍保留唤醒与最后的拓扑快照。<br><span id="modeBadge"></span></div>
+</main>
+<script>
+const LAPTOP='http://10.1.1.251:8090', DESKTOP='http://10.1.1.252:8090';
+const AMANE='http://10.1.1.251:18000/', PEACH='http://10.1.1.251:8900/';
+let MODE='hub', ST={laptop:false,desktop:false,laptop_url:LAPTOP,desktop_url:DESKTOP};
+let waking=false, wakeTimer=null, wakeLeft=0;
+
+async function getJSON(url,opt={},ms=5000){
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);
+  try{const r=await fetch(url,{...opt,signal:c.signal,cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json()}
+  finally{clearTimeout(t)}
+}
+function esc(s){return String(s==null?'--':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function setPc(cls,text){const e=document.getElementById('pcState');e.className='state'+(cls?' '+cls:'');e.innerHTML='<i></i><span>'+esc(text)+'</span>'}
+function hint(text,cls){const e=document.getElementById('wolHint');e.className='hint'+(cls?' '+cls:'');e.textContent=text}
+
+async function detectMode(){
+  try{const d=await getJSON('/api/status',{},2500);if(!d.ok)throw 0;MODE='hub';ST=d}
+  catch(e){MODE='static';ST={laptop:false,desktop:false,laptop_url:LAPTOP,desktop_url:DESKTOP}}
+  const badge=document.getElementById('modeBadge');
+  if(badge) badge.textContent='运行模式：'+(MODE==='hub'?'路由器聚合':'静态兜底');
+  const back=document.getElementById('backLink');
+  if(back){back.href=MODE==='hub'?'/':'http://10.1.1.254:8089/';back.textContent=MODE==='hub'?'← 返回监控':'← 路由器入口'}
+}
+
+async function refreshStatus(){
+  if(MODE==='hub'){
+    try{ST=await getJSON('/api/status',{},5000)}catch(e){}
+  }else{
+    const probe=async u=>{try{await getJSON(u+'/health',{},2500);return true}catch(e){return false}};
+    const [l,d]=await Promise.all([probe(LAPTOP),probe(DESKTOP)]);
+    ST={laptop:l,desktop:d,laptop_url:LAPTOP,desktop_url:DESKTOP};
+  }
+  document.getElementById('nodes').innerHTML=
+    '<span class="node on"><i></i><span>路由器在线</span></span>'+
+    '<span class="node'+(ST.laptop?' on':'')+'"><i></i><span>笔记本 '+(ST.laptop?'在线':'离线')+'</span></span>'+
+    '<span class="node'+(ST.desktop?' on':'')+'"><i></i><span>台式机 '+(ST.desktop?'在线':'离线')+'</span></span>';
+  if(ST.desktop&&!waking)setPc('ok','台式机在线');
+  else if(!waking)setPc('off','台式机离线');
+  renderLinks();
+}
+
+function renderLinks(){
+  const mon=MODE==='hub'?'/':(ST.laptop?ST.laptop_url:(ST.desktop?ST.desktop_url:null));
+  const items=[
+    {t:'完整监控',s:MODE==='hub'?'本页监控 · 不跳转其他 IP':(mon?mon.replace('http://',''):'两台设备均离线'),u:mon,off:!mon},
+    {t:'Amane',s:'10.1.1.251:18000',u:AMANE,off:!ST.laptop},
+    {t:'Peach',s:'10.1.1.251:8900',u:PEACH,off:!ST.laptop}
+  ];
+  document.getElementById('links').innerHTML=items.map(x=>{
+    const same=MODE==='hub'&&x.t==='完整监控';
+    const target=x.off?'':(same?'':' target="_blank" rel="noopener noreferrer"');
+    return '<a class="link'+(x.off?' off':'')+'" href="'+(x.u||'#')+'"'+target+'>'+
+      '<b>'+esc(x.t)+'</b><span>'+esc(x.s)+'</span><em>'+
+      (x.off?'当前不可用':(same?'在本页打开 →':'新标签打开 →'))+'</em></a>';
+  }).join('');
+}
+
+async function wake(){
+  if(ST.desktop){hint('台式机当前已在线，无需唤醒。','ok');return}
+  if(!window.confirm('确定唤醒台式机 VeT-PC？'))return;
+  const btn=document.getElementById('wolBtn');
+  btn.disabled=true;waking=true;wakeLeft=20;setPc('wait','等待上线');hint('正在发送唤醒包…');
+  try{
+    if(MODE==='hub'){
+      const r=await getJSON('/wol',{method:'POST'},10000);
+      if(!r.ok)throw new Error(r.error||'代理返回失败');
+      hint('已发送唤醒包（路由器 HTTP '+r.http_status+'），等待台式机上线…');
+    }else{
+      // 静态模式：同域 CGI 只接受 GET，no-cors 拿不到回执，靠后续轮询判断结果
+      await fetch('/cgi-bin/wol',{mode:'no-cors',cache:'no-store'}).catch(()=>{});
+      hint('已发送唤醒包（静态模式无回执），等待台式机上线…');
+    }
+  }catch(e){
+    waking=false;btn.disabled=false;hint('唤醒包发送失败：'+e.message,'err');setPc('off','台式机离线');return;
+  }
+  if(wakeTimer)clearInterval(wakeTimer);
+  wakeTimer=setInterval(async()=>{
+    await refreshStatus();
+    if(ST.desktop){
+      clearInterval(wakeTimer);wakeTimer=null;waking=false;btn.disabled=false;
+      hint('台式机已上线，可打开完整监控。','ok');return;
+    }
+    wakeLeft--;
+    if(waking)setPc('wait','等待上线 '+wakeLeft+'s');
+    if(wakeLeft<=0){
+      clearInterval(wakeTimer);wakeTimer=null;waking=false;btn.disabled=false;
+      hint('60 秒内未检测到上线，台式机可能未通电或 WOL 未生效。','err');setPc('off','台式机离线');
+    }
+  },3000);
+}
+
+async function loadPeers(){
+  const meta=document.getElementById('etMeta'),box=document.getElementById('peerList');
+  const url=MODE==='hub'?'/api/easytier':LAPTOP+'/api/easytier';
+  try{
+    const d=await getJSON(url,{},8000);
+    if(!d.ok)throw new Error(d.error||'数据不可用');
+    const list=d.peers||[];
+    meta.textContent='共 '+list.length+' 个节点 · '+((d.source==='laptop')?'笔记本回退':'路由器本地')+' · '+
+      (d.stale?'缓存':(d.ts?new Date(d.ts*1000).toLocaleTimeString('zh-CN'):'实时'))+' · 每 10 秒刷新';
+    const viewer=d.viewer_ip;
+    box.innerHTML=list.length?list.map(p=>{
+      const local=p.cost==='Local',relay=!local&&p.cost!=='p2p';
+      const isViewer=viewer&&p.ipv4===viewer;
+      let badge;
+      if(isViewer) badge='<span class="tag">本机</span>';
+      else if(local) badge='<span class="tag src">路由器</span>';
+      else badge='<span class="tag'+(relay?' relay':'')+'">'+esc(p.cost)+'</span>';
+      return '<div class="peer'+(isViewer||local?' local':'')+'"><div class="l1"><span class="hn">'+esc(p.hostname)+'</span>'+
+        badge+
+        '<span class="ip">'+esc(p.ipv4)+'</span></div><div class="l2">'+
+        '<span>延迟 <b>'+esc(p.lat_ms)+(p.lat_ms!=='-'?' ms':'')+'</b></span>'+
+        '<span>丢包 <b>'+esc(p.loss_rate)+'</b></span>'+
+        '<span>协议 <b>'+esc(p.tunnel_proto)+'</b></span>'+
+        '<span>↓ <b>'+esc(p.rx_bytes)+'</b> ↑ <b>'+esc(p.tx_bytes)+'</b></span></div></div>';
+    }).join(''):'<div class="empty">暂无节点</div>';
+  }catch(e){
+    meta.textContent='读取失败 · 10 秒后重试';
+    box.innerHTML='<div class="empty">'+esc(e.message)+'</div>';
+  }
+}
+
+function dnsUrl(act){return MODE==='hub'?'/api/dns?action='+act:'/cgi-bin/dns?action='+act}
+function setDns(cls,text,sub){
+  const e=document.getElementById('dnsState');e.className='state'+(cls?' '+cls:'');
+  e.innerHTML='<i></i><span>'+esc(text)+'</span>';
+  document.getElementById('dnsSub').textContent=sub;
+}
+function dnsHint(text,cls){const e=document.getElementById('dnsHint');e.className='hint'+(cls?' '+cls:'');e.textContent=text}
+async function dnsStatus(){
+  try{
+    const d=await getJSON(dnsUrl('status'),{},6000);
+    const adg=d.mode==='adguard';
+    setDns(adg?'ok':'off',adg?'AdGuard 模式（去广告）':'保底模式（运营商 DNS）',
+      adg?'上游 127.0.0.1#5353 · AdGuard 全屋过滤':'直连 /tmp/resolv.conf.auto 中的运营商 DNS');
+  }catch(e){setDns('off','状态读取失败','CGI 不可达：'+e.message)}
+}
+async function switchDns(act){
+  const label=act==='fallback'?'回退到保底 DNS（关闭去广告）':'恢复 AdGuard 模式（开启去广告）';
+  if(!window.confirm('确定'+label+'？\n\n会重启 dnsmasq，全屋 DNS 中断几秒，网络连接不断。'))return;
+  const fb=document.getElementById('dnsFallback'),rs=document.getElementById('dnsRestore');
+  fb.disabled=true;rs.disabled=true;dnsHint('正在切换，请稍候…');
+  try{
+    const d=await getJSON(dnsUrl(act),{method:'POST'},15000);
+    dnsHint(d.message||'已返回',d.ok?'ok':'err');
+    await dnsStatus();
+  }catch(e){dnsHint('切换失败：'+e.message,'err')}
+  finally{fb.disabled=false;rs.disabled=false}
+}
+
+document.getElementById('wolBtn').addEventListener('click',wake);
+document.getElementById('dnsFallback').addEventListener('click',()=>switchDns('fallback'));
+document.getElementById('dnsRestore').addEventListener('click',()=>switchDns('restore'));
+(async()=>{
+  await detectMode();
+  await refreshStatus();
+  loadPeers();
+  dnsStatus();
+  setInterval(refreshStatus,15000);
+  setInterval(loadPeers,10000);
+  setInterval(dnsStatus,30000);
+})();
+</script>
+</body>
+</html>

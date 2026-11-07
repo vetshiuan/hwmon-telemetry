@@ -1,0 +1,23 @@
+# 备用配置：路由器目前未装 docker compose 插件（见「折腾路由器」待办）。
+# 当前请用 run-on-router.sh，里面是等价的 docker run 命令。
+# 镜像走 daocloud 代理，与路由器上 EasyTier 的拉取方式一致。
+services:
+  hwmon-hub:
+    image: docker.m.daocloud.io/library/python:3.12-alpine
+    container_name: hwmon-hub
+    restart: unless-stopped
+    # host 模式：容器直接使用路由器网络栈，才能访问 10.1.1.251/252 与 10.1.1.254:8088
+    # 路由器 OPA 限制已解除，host 网络可用
+    network_mode: host
+    working_dir: /app
+    volumes:
+      - ./:/app:ro
+    command: ["python", "-u", "/app/router_hub.py"]
+    environment:
+      HWMON_LAPTOP: "http://10.1.1.251:8090"
+      HWMON_DESKTOP: "http://10.1.1.252:8090"
+      HWMON_WOL: "http://10.1.1.254:8088/cgi-bin/wol"
+      HWMON_PORT: "8089"
+      HWMON_TIMEOUT: "3"
+      HWMON_PROBE_TTL: "5"
+      HWMON_PEER_TTL: "10"

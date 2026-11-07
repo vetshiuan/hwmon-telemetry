@@ -19,6 +19,7 @@ import re
 import shutil
 import socket
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import threading
@@ -42,6 +43,19 @@ GPUZ_STALE_MS = 10_000
 SNAPSHOT_WARN_MS = 8_000
 SNAPSHOT_BAD_MS = 15_000
 ALERT_HOLD_SAMPLES = 3
+
+# 工具页依赖：EasyTier CLI 与路由器 WOL 地址（均可用环境变量覆盖）
+EASYTIER_CLI = os.environ.get(
+    "EASYTIER_CLI", r"C:\Tools\EasyTier\easytier\easytier-cli.exe"
+)
+WOL_URL = os.environ.get("HWMON_WOL_URL", "http://10.1.1.254:8088/cgi-bin/wol")
+ET_CACHE_SECONDS = 10
+WOL_THROTTLE_SECONDS = 60
+
+_et_lock = threading.Lock()
+_et_cache = {"ts": 0.0, "data": None}
+_wol_lock = threading.Lock()
+_last_wol = {"ts": 0.0, "result": None}
 
 # 产品预警策略，不等同于所有传感器的官方损坏限值。
 ALERT_RULES = {
@@ -676,12 +690,14 @@ def local_day_start(date_value=None):
 
 def query_history(window):
     now = int(time.time() * 1000)
-    if window == "1h":
+    if window == "5m":
+        start = now - 300_000
+    elif window == "1h":
         start = now - 3_600_000
     elif window == "today":
         start = local_day_start()
     else:
-        raise ValueError("window 仅支持 1h 或 today")
+        raise ValueError("window 仅支持 5m、1h 或 today")
     bucket = max(2000, int((now - start) / 119))
     fields = ["CAST(AVG(ts) AS INTEGER) AS t"] + [f"AVG({name}) AS {name}" for name in SAMPLE_FIELDS]
     with db_session() as conn:
@@ -697,11 +713,22 @@ def query_history(window):
     return data
 
 
-def daily_summary(date_text=None):
-    day = dt.date.fromisoformat(date_text) if date_text else dt.datetime.now().date()
-    start = local_day_start(day)
+WINDOW_SECONDS = {"5m": 300, "1h": 3_600}
+WINDOW_LABELS = {"5m": "近 5 分钟", "1h": "近 1 小时", "today": "今日"}
+
+
+def window_bounds(window):
+    """返回 (start_ms, end_ms, label)。today 为本地自然日 0 点起。"""
     now = int(time.time() * 1000)
-    end = min(now, start + 86_400_000)
+    if window == "today":
+        return local_day_start(), now, WINDOW_LABELS["today"]
+    if window not in WINDOW_SECONDS:
+        raise ValueError("window 仅支持 5m、1h 或 today")
+    return now - WINDOW_SECONDS[window] * 1000, now, WINDOW_LABELS[window]
+
+
+def _aggregate(start, end):
+    """区间内按采样统计 min/avg/max、采样数、覆盖度与阈值越线累计秒数。"""
     selects = ["COUNT(*) AS samples", "MIN(ts) AS first_sample", "MAX(ts) AS last_sample"]
     for name in SAMPLE_FIELDS:
         selects.extend((f"MIN({name}) AS min_{name}", f"AVG({name}) AS avg_{name}", f"MAX({name}) AS max_{name}"))
@@ -713,7 +740,7 @@ def daily_summary(date_text=None):
     ))
     with db_session() as conn:
         row = conn.execute(
-            f"SELECT {','.join(selects)} FROM samples WHERE ts >= ? AND ts < ?",
+            f"SELECT {','.join(selects)} FROM samples WHERE ts >= ? AND ts <= ?",
             (start, end),
         ).fetchone()
 
@@ -727,11 +754,9 @@ def daily_summary(date_text=None):
     span_seconds = max(0, (last - first) / 1000) if first and last else 0
     coverage = min(100, count * POLL_INTERVAL / span_seconds * 100) if span_seconds > 0 else (100 if count else 0)
     return {
-        "date": day.isoformat(), "generated_at": now, "start": start, "end": end,
         "samples": count, "first_sample": first, "last_sample": last,
-        "coverage_pct": round(coverage, 1), "retention_days": DB_RETENTION_DAYS,
+        "coverage_pct": round(coverage, 1),
         "metrics": metrics,
-        "storage": {"ok": True, "source": "database_readable"},
         "events_seconds": {
             "cpu_temp_ge_85": int((row["cpu_warn_count"] or 0) * POLL_INTERVAL),
             "gpu_core_ge_80": int((row["gpu_warn_count"] or 0) * POLL_INTERVAL),
@@ -739,6 +764,39 @@ def daily_summary(date_text=None):
             "pin_volt_le_11_8": int((row["pin_warn_count"] or 0) * POLL_INTERVAL),
         },
     }
+
+
+def window_summary(window="today"):
+    """按时间窗口产出使用小结：5m / 1h / today。"""
+    start, end, label = window_bounds(window)
+    now = int(time.time() * 1000)
+    data = _aggregate(start, end)
+    data.update({
+        "window": window, "label": label,
+        "date": dt.datetime.fromtimestamp(start / 1000).date().isoformat(),
+        "generated_at": now, "start": start, "end": end,
+        "retention_days": DB_RETENTION_DAYS,
+        "storage": {"ok": True, "source": "database_readable"},
+    })
+    return data
+
+
+def daily_summary(date_text=None):
+    """兼容旧接口：不传日期等价于 window_summary('today')。"""
+    if not date_text:
+        return window_summary("today")
+    day = dt.date.fromisoformat(date_text)
+    start = local_day_start(day)
+    now = int(time.time() * 1000)
+    end = min(now, start + 86_400_000)
+    data = _aggregate(start, end)
+    data.update({
+        "window": "today", "label": day.isoformat(), "date": day.isoformat(),
+        "generated_at": now, "start": start, "end": end,
+        "retention_days": DB_RETENTION_DAYS,
+        "storage": {"ok": True, "source": "database_readable"},
+    })
+    return data
 
 
 # ---------------- 采集线程 ----------------
@@ -780,10 +838,70 @@ def poller():
         time.sleep(POLL_INTERVAL)
 
 
+# ---------------- 工具页数据 ----------------
+
+def easytier_status():
+    """调用 easytier-cli -o json peer；10 秒缓存，失败时回退上一次结果。"""
+    now = time.time()
+    with _et_lock:
+        cached = _et_cache["data"]
+        if cached is not None and now - _et_cache["ts"] < ET_CACHE_SECONDS:
+            return dict(cached, cached=True, stale=False)
+    payload = {"ok": False, "peers": [], "error": None,
+               "ts": now, "cached": False, "stale": False}
+    try:
+        kwargs = dict(capture_output=True, text=True, timeout=3,
+                      encoding="utf-8", errors="replace")
+        if os.name == "nt":
+            kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW，pythonw 下不弹窗
+        proc = subprocess.run([EASYTIER_CLI, "-o", "json", "peer"], **kwargs)
+        if proc.returncode != 0:
+            raise RuntimeError("cli exit %d: %s"
+                               % (proc.returncode, (proc.stderr or "")[:160]))
+        peers = json.loads((proc.stdout or "").strip())
+        if not isinstance(peers, list):
+            raise RuntimeError("cli 输出不是 JSON 列表")
+        payload.update(ok=True, peers=peers, ts=time.time())
+        with _et_lock:
+            _et_cache.update(ts=payload["ts"], data=payload)
+        return payload
+    except Exception as e:
+        payload["error"] = str(e)[:200]
+        with _et_lock:
+            if _et_cache["data"] is not None:
+                return dict(_et_cache["data"], cached=True, stale=True,
+                            error=payload["error"])
+        return payload
+
+
+def trigger_wol():
+    """代理路由器 WOL 的 GET；60 秒内重复点击直接返回上次结果。"""
+    now = time.time()
+    with _wol_lock:
+        prev = _last_wol["result"]
+        if prev is not None and now - _last_wol["ts"] < WOL_THROTTLE_SECONDS:
+            return dict(prev, throttled=True)
+        result = {"ok": False, "http_status": None, "error": None,
+                  "target": "VeT-PC", "ts": now, "throttled": False}
+        try:
+            req = urllib.request.Request(
+                WOL_URL, headers={"User-Agent": "hwmon-tools/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=6) as r:
+                result["http_status"] = getattr(r, "status", 200)
+                r.read(2048)
+            result["ok"] = True
+        except Exception as e:
+            result["http_status"] = getattr(e, "code", None)
+            result["error"] = str(e)[:200]
+        _last_wol.update(ts=now, result=result)
+        return result
+
+
 # ---------------- HTTP ----------------
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "hwmon/0.5"
+    server_version = "hwmon/0.6"
 
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -821,7 +939,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/history":
             window = (query.get("window") or ["4m"])[0]
-            if window in ("1h", "today"):
+            if window in ("5m", "1h", "today"):
                 try:
                     self._json(query_history(window))
                 except Exception as e:
@@ -832,6 +950,21 @@ class Handler(BaseHTTPRequestHandler):
             now = int(time.time() * 1000)
             data["_meta"] = {"window": "4m", "start": now - HIST_WINDOW_MS, "end": now, "bucket_ms": 2000}
             self._json(data)
+            return
+
+        if path == "/api/summary":
+            window = (query.get("window") or ["today"])[0]
+            try:
+                data = window_summary(window)
+                with _lock:
+                    snap = _state.get("snapshot")
+                if snap and snap.get("storage"):
+                    data["storage"] = snap["storage"]
+                self._json(data)
+            except ValueError as e:
+                self._json({"error": "window 仅支持 5m、1h 或 today", "detail": str(e)}, 400)
+            except Exception as e:
+                self._json({"error": str(e)[:160]}, 503)
             return
 
         if path == "/api/daily":
@@ -847,6 +980,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": "date 格式应为 YYYY-MM-DD", "detail": str(e)}, 400)
             except Exception as e:
                 self._json({"error": str(e)[:160]}, 503)
+            return
+
+        if path == "/api/easytier":
+            self._json(easytier_status())
+            return
+
+        if path == "/tools":
+            self._serve_file("tools.html", "text/html; charset=utf-8")
             return
 
         if path in ("/", "/index.html"):
@@ -871,10 +1012,17 @@ class Handler(BaseHTTPRequestHandler):
 
         self.send_error(404)
 
+    def do_POST(self):
+        path = urllib.parse.urlparse(self.path).path
+        if path == "/api/wol":
+            self._json(trigger_wol())
+            return
+        self.send_error(404)
+
     def _serve_file(self, name, ctype):
         fp = os.path.join(STATIC_DIR, name)
         if not os.path.exists(fp):
-            self.send_error(404, "ui.html not found")
+            self.send_error(404, "%s not found" % name)
             return
         with open(fp, "rb") as f:
             body = f.read()
