@@ -1,0 +1,85 @@
+{
+  "channel": "wecom",
+  "wecom_webhook": "",
+  "pushplus_token": "",
+  "poll_seconds": 30,
+  "heartbeat_minutes": 30,
+  "alert_repeat_minutes": 5,
+  "confirm_samples": 2,
+  "recover_samples": 3,
+  "flap_guard_minutes": 10,
+  "devices": [
+    {
+      "id": "desktop",
+      "name": "台式机",
+      "url": "http://192.168.1.10:8090",
+      "enabled": true,
+      "rules": [
+        {
+          "key": "gpu.hot",
+          "label": "GPU 热点",
+          "op": ">=",
+          "value": 108,
+          "unit": "°C"
+        },
+        {
+          "key": "gpu.core",
+          "label": "GPU 核心",
+          "op": ">=",
+          "value": 88,
+          "unit": "°C"
+        },
+        {
+          "key": "gpu.mem",
+          "label": "GPU 显存",
+          "op": ">=",
+          "value": 100,
+          "unit": "°C"
+        },
+        {
+          "key": "cpu.temp",
+          "label": "CPU 温度",
+          "op": ">=",
+          "value": 95,
+          "unit": "°C"
+        },
+        {
+          "key": "gpu.pin_volt",
+          "label": "16pin 电压",
+          "op": "<",
+          "value": 11.6,
+          "unit": "V"
+        },
+        {
+          "key": "gpu.pin_volt",
+          "label": "16pin 电压",
+          "op": ">",
+          "value": 12.8,
+          "unit": "V"
+        },
+        {
+          "key": "mem.pct",
+          "label": "内存占用",
+          "op": ">=",
+          "value": 95,
+          "unit": "%"
+        }
+      ]
+    },
+    {
+      "id": "laptop",
+      "name": "笔记本",
+      "url": "http://127.0.0.1:8090",
+      "enabled": true,
+      "rules": [
+        {
+          "key": "mem.pct",
+          "label": "内存占用",
+          "op": ">=",
+          "value": 95,
+          "unit": "%"
+        }
+      ]
+    }
+  ]
+}

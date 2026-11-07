@@ -12,6 +12,9 @@ hwmon.db-shm
 *.log
 gpuz.csv
 
+# 真实推送配置（含 Webhook 密钥，等同密码，绝不入库）
+push_config.json
+
 # 本地工具产物
 .workbuddy/
 .playwright-mcp/
