@@ -41,8 +41,11 @@ button{font-family:inherit}
 @media(min-width:900px){.hero{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}}
 .card{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.025),transparent),var(--panel);border:1px solid var(--line);border-radius:15px;padding:14px 9px 11px;display:flex;flex-direction:column;align-items:center;min-width:0;overflow:hidden;transition:border-color .2s}
 .card.warn{border-color:rgba(251,191,36,.42)}.card.bad{border-color:rgba(251,113,133,.55)}.card.unknown{opacity:.68}
-.ring{width:100px;height:100px;position:relative;flex:none}.ring canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-.ring .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;pointer-events:none}
+/* canvas 与文字层都必须强制透明：Chrome 强制深色 / Dark Reader 会给这两层注入
+   rgb(24,26,27) 不透明背景，遮住圆环下半或盖掉中心数字（平板上表现为"半椭圆"）。
+   canvas 放上层，文字层透明垫底，两层都不遮挡对方。 */
+.ring{width:100px;height:100px;position:relative;flex:none}.ring canvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:2;background:transparent!important}
+.ring .val{position:absolute;inset:0;z-index:1;background:transparent!important;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;pointer-events:none}
 .num{font-size:clamp(19px,4.6vw,26px);font-weight:650;letter-spacing:-.02em;line-height:1.05;color:#fff}.unit{font-size:10px;color:var(--dim2);font-weight:500;letter-spacing:.04em}
 .card.warn .num{color:var(--warn)}.card.bad .num{color:var(--bad)}.card.unknown .num{color:var(--dim2)}
 .card .name{font-size:12px;color:#c3cbd8;margin-top:8px;font-weight:550;text-align:center}.card .meta{font-size:10.5px;color:var(--dim);margin-top:3px;text-align:center;min-height:28px;max-width:100%;line-height:1.35;white-space:normal}
@@ -172,14 +175,26 @@ function pickCards(s){
 }
 function ringPct(cfg,v){return Math.max(0,Math.min(1,v/(cfg.max||100)))}
 function drawRing(cv,pct,color){
-  if(!cv)return;const dpr=window.devicePixelRatio||1,size=cv.clientWidth||100;if(!size)return;
-  const w=Math.round(size*dpr);if(cv.width!==w){cv.width=w;cv.height=w}
-  const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,size,size);
-  const lw=Math.max(5,size*.068),r=size/2-lw/2-1,cx=size/2,cy=size/2;
-  c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.strokeStyle='rgba(255,255,255,.075)';c.lineWidth=lw;c.stroke();
+  if(!cv)return;
+  // 按实际 CSS 宽高分别设位图，并用较短边定半径：即使布局被压扁也保持正圆
+  const dpr=window.devicePixelRatio||1,wCss=cv.clientWidth||100,hCss=cv.clientHeight||wCss;
+  if(!wCss||!hCss)return;
+  const bw=Math.round(wCss*dpr),bh=Math.round(hCss*dpr);
+  if(cv.width!==bw||cv.height!==bh){cv.width=bw;cv.height=bh}
+  cv.dataset.pct=pct;cv.dataset.color=color;
+  const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,wCss,hCss);
+  const size=Math.min(wCss,hCss),lw=Math.max(5,size*.068),r=size/2-lw/2-1;
+  const cx=wCss/2,cy=hCss/2;
+  // 底弧要够亮：平板/高亮环境下 .075 几乎不可见，会让人误以为只剩半个椭圆
+  c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.strokeStyle='rgba(255,255,255,.16)';c.lineWidth=lw;c.stroke();
   if(pct<=.001)return;const start=-Math.PI/2,end=start+Math.PI*2*pct;
   c.beginPath();c.arc(cx,cy,r,start,end);c.strokeStyle=color;c.lineWidth=lw;c.lineCap='round';c.stroke();
 }
+window.addEventListener('resize',()=>{
+  document.querySelectorAll('.ring canvas').forEach(cv=>{
+    drawRing(cv,parseFloat(cv.dataset.pct||0),cv.dataset.color||'#60a5fa');
+  });
+});
 function rebuildHero(cards){
   const host=document.getElementById('hero');
   host.innerHTML=cards.map(cfg=>`<div class="card unknown" data-k="${cfg.k}">
