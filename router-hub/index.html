@@ -81,7 +81,7 @@ body{background:radial-gradient(900px 460px at 12% -10%,rgba(59,130,246,.12),tra
     <div class="wol">
       <div class="info">
         <div class="state" id="pcState"><i></i><span>检测中…</span></div>
-        <div class="sub">VeT-PC · 10.1.1.252 · 路由器 WOL</div>
+        <div class="sub">DESKTOP-PC · 127.0.0.1 · 路由器 WOL</div>
       </div>
       <button class="btn" id="wolBtn">唤醒</button>
     </div>
@@ -117,8 +117,8 @@ body{background:radial-gradient(900px 460px at 12% -10%,rgba(59,130,246,.12),tra
   <div class="foot">硬件数据始终来自两台 PC 本身；笔记本离线时仍保留唤醒与最后的拓扑快照。<br><span id="modeBadge"></span></div>
 </main>
 <script>
-const LAPTOP='http://10.1.1.251:8090', DESKTOP='http://10.1.1.252:8090';
-const AMANE='http://10.1.1.251:18000/', PEACH='http://10.1.1.251:8900/';
+const LAPTOP='http://127.0.0.1:8090', DESKTOP='http://127.0.0.1:8090';
+const AMANE='http://127.0.0.1:18000/', PEACH='http://127.0.0.1:8900/';
 let MODE='hub', ST={laptop:false,desktop:false,laptop_url:LAPTOP,desktop_url:DESKTOP};
 let waking=false, wakeTimer=null, wakeLeft=0;
 
@@ -132,12 +132,12 @@ function setPc(cls,text){const e=document.getElementById('pcState');e.className=
 function hint(text,cls){const e=document.getElementById('wolHint');e.className='hint'+(cls?' '+cls:'');e.textContent=text}
 
 async function detectMode(){
-  try{const d=await getJSON('/api/status',{},2500);if(!d.ok)throw 0;MODE='hub';ST=d}
+  try{const d=await getJSON('/api/status',{},6000);if(!d.ok)throw 0;MODE='hub';ST=d}
   catch(e){MODE='static';ST={laptop:false,desktop:false,laptop_url:LAPTOP,desktop_url:DESKTOP}}
   const badge=document.getElementById('modeBadge');
   if(badge) badge.textContent='运行模式：'+(MODE==='hub'?'路由器聚合':'静态兜底');
   const back=document.getElementById('backLink');
-  if(back){back.href=MODE==='hub'?'/':'http://10.1.1.254:8089/';back.textContent=MODE==='hub'?'← 返回监控':'← 路由器入口'}
+  if(back){back.href=MODE==='hub'?'/':'http://127.0.0.1:8089/';back.textContent=MODE==='hub'?'← 返回监控':'← 路由器入口'}
 }
 
 async function refreshStatus(){
@@ -161,8 +161,8 @@ function renderLinks(){
   const mon=MODE==='hub'?'/':(ST.laptop?ST.laptop_url:(ST.desktop?ST.desktop_url:null));
   const items=[
     {t:'完整监控',s:MODE==='hub'?'本页监控 · 不跳转其他 IP':(mon?mon.replace('http://',''):'两台设备均离线'),u:mon,off:!mon},
-    {t:'Amane',s:'10.1.1.251:18000',u:AMANE,off:!ST.laptop},
-    {t:'Peach',s:'10.1.1.251:8900',u:PEACH,off:!ST.laptop}
+    {t:'Amane',s:'127.0.0.1:18000',u:AMANE,off:!ST.laptop},
+    {t:'Peach',s:'127.0.0.1:8900',u:PEACH,off:!ST.laptop}
   ];
   document.getElementById('links').innerHTML=items.map(x=>{
     const same=MODE==='hub'&&x.t==='完整监控';
@@ -175,7 +175,7 @@ function renderLinks(){
 
 async function wake(){
   if(ST.desktop){hint('台式机当前已在线，无需唤醒。','ok');return}
-  if(!window.confirm('确定唤醒台式机 VeT-PC？'))return;
+  if(!window.confirm('确定唤醒台式机 DESKTOP-PC？'))return;
   const btn=document.getElementById('wolBtn');
   btn.disabled=true;waking=true;wakeLeft=20;setPc('wait','等待上线');hint('正在发送唤醒包…');
   try{

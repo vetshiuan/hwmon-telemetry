@@ -6,7 +6,7 @@ services:
     image: docker.m.daocloud.io/library/python:3.12-alpine
     container_name: hwmon-hub
     restart: unless-stopped
-    # host 模式：容器直接使用路由器网络栈，才能访问 10.1.1.251/252 与 10.1.1.254:8088
+    # host 模式：容器直接使用路由器网络栈，才能访问 127.0.0.1/252 与 127.0.0.1:8088
     # 路由器 OPA 限制已解除，host 网络可用
     network_mode: host
     working_dir: /app
@@ -14,9 +14,9 @@ services:
       - ./:/app:ro
     command: ["python", "-u", "/app/router_hub.py"]
     environment:
-      HWMON_LAPTOP: "http://10.1.1.251:8090"
-      HWMON_DESKTOP: "http://10.1.1.252:8090"
-      HWMON_WOL: "http://10.1.1.254:8088/cgi-bin/wol"
+      HWMON_LAPTOP: "http://127.0.0.1:8090"
+      HWMON_DESKTOP: "http://127.0.0.1:8090"
+      HWMON_WOL: "http://127.0.0.1:8088/cgi-bin/wol"
       HWMON_PORT: "8089"
       HWMON_TIMEOUT: "3"
       HWMON_PROBE_TTL: "5"

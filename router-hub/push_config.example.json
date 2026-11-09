@@ -1,0 +1,32 @@
+{
+  "channel": "wecom",
+  "wecom_webhook": "",
+  "poll_seconds": 30,
+  "daily_report": true,
+  "daily_report_time": "21:00",
+  "alert_repeat_minutes": 30,
+  "confirm_samples": 3,
+  "recover_samples": 3,
+  "flap_guard_minutes": 10,
+  "offline_confirm": 3,
+  "devices": [
+    {
+      "id": "desktop",
+      "name": "台式机",
+      "url": "http://127.0.0.1:8090",
+      "enabled": true,
+      "offline_alert": false,
+      "source_alert": true,
+      "rules": []
+    },
+    {
+      "id": "laptop",
+      "name": "笔记本",
+      "url": "http://127.0.0.1:8090",
+      "enabled": true,
+      "offline_alert": true,
+      "source_alert": true,
+      "rules": []
+    }
+  ]
+}

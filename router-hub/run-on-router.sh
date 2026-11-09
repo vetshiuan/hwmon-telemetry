@@ -30,9 +30,9 @@ $D run -d --name hwmon-hub \
   --restart unless-stopped \
   -v "$DIR":/app:ro \
   -w /app \
-  -e HWMON_LAPTOP=http://10.1.1.251:8090 \
-  -e HWMON_DESKTOP=http://10.1.1.252:8090 \
-  -e HWMON_WOL=http://10.1.1.254:8088/cgi-bin/wol \
+  -e HWMON_LAPTOP=http://127.0.0.1:8090 \
+  -e HWMON_DESKTOP=http://127.0.0.1:8090 \
+  -e HWMON_WOL=http://127.0.0.1:8088/cgi-bin/wol \
   -e HWMON_PORT=8089 \
   "$IMG" \
   python -u /app/router_hub.py

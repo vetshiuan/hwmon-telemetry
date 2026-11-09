@@ -66,7 +66,7 @@ a{color:inherit}
     <div class="wol">
       <div class="info">
         <div class="state" id="pcState"><i></i><span>检测中…</span></div>
-        <div class="sub">VeT-PC · 10.1.1.252 · 经路由器 WOL (10.1.1.254:8088)</div>
+        <div class="sub">DESKTOP-PC · 127.0.0.1 · 经路由器 WOL (127.0.0.1:8088)</div>
       </div>
       <button class="btn" id="wolBtn">唤醒</button>
     </div>
@@ -76,11 +76,11 @@ a{color:inherit}
   <section class="panel">
     <h2>本机应用</h2>
     <div class="apps">
-      <a class="app" href="http://10.1.1.251:18000/" target="_blank" rel="noopener noreferrer">
-        <b>Amane</b><span>10.1.1.251:18000</span><em>新标签打开 →</em>
+      <a class="app" href="http://127.0.0.1:18000/" target="_blank" rel="noopener noreferrer">
+        <b>Amane</b><span>127.0.0.1:18000</span><em>新标签打开 →</em>
       </a>
-      <a class="app" href="http://10.1.1.251:8900/" target="_blank" rel="noopener noreferrer">
-        <b>Peach</b><span>10.1.1.251:8900</span><em>新标签打开 →</em>
+      <a class="app" href="http://127.0.0.1:8900/" target="_blank" rel="noopener noreferrer">
+        <b>Peach</b><span>127.0.0.1:8900</span><em>新标签打开 →</em>
       </a>
     </div>
     <div class="hint">这两个入口只是跳转，不代理内容；需手机已连上 EasyTier。</div>
@@ -94,7 +94,7 @@ a{color:inherit}
   <div class="foot">数据来自本机 easytier-cli · 由 hwmon-agent 提供</div>
 </main>
 <script>
-const PC_HEALTH='http://10.1.1.252:8090/health';
+const PC_HEALTH='http://127.0.0.1:8090/health';
 let pcOnline=false, waking=false, wakeTimer=null, wakeLeft=0;
 
 async function getJSON(url, opt={}, ms=5000){
@@ -123,7 +123,7 @@ function setHint(text, cls){
 
 async function wake(){
   if(pcOnline){ setHint('台式机当前已在线，无需唤醒。','ok'); return; }
-  if(!window.confirm('确定唤醒台式机 VeT-PC？')) return;
+  if(!window.confirm('确定唤醒台式机 DESKTOP-PC？')) return;
   const btn=document.getElementById('wolBtn');
   btn.disabled=true; waking=true; wakeLeft=20;
   setHint('正在发送唤醒包…');

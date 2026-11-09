@@ -16,12 +16,10 @@ import datetime as dt
 import json
 import os
 import re
-import shutil
 import socket
 import sqlite3
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import urllib.parse
@@ -30,8 +28,21 @@ from collections import deque
 from contextlib import contextmanager
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
-LHM_URL = "http://127.0.0.1:8085/data.json"
-GPZ_CSV = r"C:\hwsensor\gpuz.csv"
+# ---------------- 部署差异 ----------------
+
+def default_easytier_cli():
+    """两台机器 EasyTier 安装盘不同（笔记本 C:、台式机 D:），按存在性探测。"""
+    candidates = (
+        r"C:\Tools\EasyTier\easytier\easytier-cli.exe",
+        r"D:\Tools\EasyTier\easytier\easytier-cli.exe",
+    )
+    return next((p for p in candidates if os.path.exists(p)), candidates[0])
+
+
+# ---------------- 采集配置 ----------------
+
+LHM_URL = "http://127.0.0.1:8085/data.json"   # LHM Web Server，必须 SYSTEM/管理员启动
+GPZ_CSV = r"C:\hwsensor\gpuz.csv"              # GPU-Z 传感器日志，GUI 程序持续追加
 STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.environ.get("HWMON_DB", os.path.join(STATIC_DIR, "hwmon.db"))
 DB_RETENTION_DAYS = 7
@@ -44,11 +55,14 @@ SNAPSHOT_WARN_MS = 8_000
 SNAPSHOT_BAD_MS = 15_000
 ALERT_HOLD_SAMPLES = 3
 
+# 每核历史只存温度、降频到 30 秒一行：24 核 × 7 天约 2 万行 / 几 MB。
+# 它是实时诊断视图，不与主 samples 表同频，也不参与 /api/summary 聚合。
+CORE_SAMPLE_EVERY = 15
+CORE_ID_RE = re.compile(r"[PEC]\d{1,2}")
+
 # 工具页依赖：EasyTier CLI 与路由器 WOL 地址（均可用环境变量覆盖）
-EASYTIER_CLI = os.environ.get(
-    "EASYTIER_CLI", r"C:\Tools\EasyTier\easytier\easytier-cli.exe"
-)
-WOL_URL = os.environ.get("HWMON_WOL_URL", "http://10.1.1.254:8088/cgi-bin/wol")
+EASYTIER_CLI = os.environ.get("EASYTIER_CLI") or default_easytier_cli()
+WOL_URL = os.environ.get("HWMON_WOL_URL", "http://127.0.0.1:8088/cgi-bin/wol")
 ET_CACHE_SECONDS = 10
 WOL_THROTTLE_SECONDS = 60
 
@@ -241,6 +255,29 @@ def resolve_gpuz_columns(header):
     return result
 
 
+def _read_gpuz_edges(path, encoding="gbk"):
+    """
+    只取 CSV 的表头行与最后一条数据行。
+
+    GPU-Z 日志会无限追加；旧实现每 2 秒复制整个文件再逐行遍历，
+    运行几天后单次采样就要读几十 MB。改为开头只读一行、尾部按 4KB
+    回退到行边界，耗时与文件大小无关。
+    返回 (header_line, last_line)；文件为空时两者皆为空串。
+    """
+    with open(path, "rb") as f:
+        header = f.readline().decode(encoding, errors="ignore")
+        f.seek(0, os.SEEK_END)
+        pos, tail = f.tell(), b""
+        # 凑够两个换行才能确定取到一条完整数据行（末行可能正被写入）。
+        while pos > 0 and tail.count(b"\n") < 2:
+            step = min(4096, pos)
+            pos -= step
+            f.seek(pos)
+            tail = f.read(step) + tail
+    lines = [line for line in tail.decode(encoding, errors="ignore").splitlines() if line.strip()]
+    return header, (lines[-1] if lines else "")
+
+
 def fetch_gpuz():
     """返回 (values, meta)。过期、错列或不完整的数据绝不覆盖 LHM。"""
     meta = {
@@ -262,23 +299,11 @@ def fetch_gpuz():
         meta["error"] = "GPU-Z 日志已停止更新"
         return None, meta
 
-    tmp = os.path.join(tempfile.gettempdir(), "hwmon_gpuz.csv")
     try:
-        shutil.copyfile(GPZ_CSV, tmp)
-        with open(tmp, "r", encoding="gbk", errors="ignore", newline="") as f:
-            header_line = f.readline()
-            last = ""
-            for line in f:
-                if line.strip():
-                    last = line
+        header_line, last = _read_gpuz_edges(GPZ_CSV)
     except Exception as e:
         meta["error"] = str(e)[:120]
         return None, meta
-    finally:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
 
     if not header_line.strip() or not last.strip():
         meta["error"] = "GPU-Z 日志缺少表头或数据行"
@@ -304,6 +329,130 @@ def fetch_gpuz():
     meta["available"] = True
     meta["columns"] = {k: v for k, v in indexes.items() if v is not None}
     return out, meta
+
+
+# ---------------- 每核明细 ----------------
+#
+# LHM data.json 本来就有每颗物理核心的独立传感器（2026-11-09 实测）：
+#   <CPU>/Temperatures/P-Core #1                     = 81.0 °C
+#   <CPU>/Clocks/P-Core #1                           = 4214.1 MHz
+#   <CPU>/Voltages/P-Core #1                         = 1.198 V
+#   <CPU>/Temperatures/P-Core #1 Distance to TjMax  = 19.0 °C
+#   <CPU>/Load/CPU Core #1 Thread #1                 = 30.8 %  ← 全局线程号
+# 旧版 pick() 只取「第一个匹配值」，把这些明细全丢了。这里收敛成一个纯函数：
+# 输入输出明确、可单独测试，且不改动任何原有聚合字段。
+
+CORE_SENSOR_RE = re.compile(
+    r"^(?P<kind>P-Core|E-Core|Core) #(?P<index>\d+)(?P<dist> Distance to TjMax)?$",
+    re.IGNORECASE,
+)
+THREAD_LOAD_RE = re.compile(
+    r"^CPU Core #(?P<index>\d+)(?: Thread #(?P<thread>\d+))?$", re.IGNORECASE,
+)
+CORE_FIELD_BY_CATEGORY = {
+    "Temperatures": "temp",
+    "Clocks": "clock",
+    "Voltages": "volt",
+}
+
+
+def collect_cpu_cores(leaves, cpu_name=None):
+    """
+    从 LHM 展平叶子中提取每个物理核心的明细。纯函数、无副作用。
+
+    返回的数据契约（/api/snapshot 的 cpu.cores，供前端 CoreInspector 消费）：
+      {
+        "available": bool,                  # 是否存在任意每核传感器
+        "count": int,                       # 物理核心数
+        "groups": [{"kind": "P", "label": "性能核 (P)",
+                    "cores": [{"id": "P1", "label": "P 核 1", "index": 1,
+                               "temp": 81.0, "clock": 4214.1,
+                               "volt": 1.198, "dist": 19.0}]}],
+        "hottest": {"id": "P2", "label": "P 核 2", "temp": 93.0} | None,
+        "threads": [{"id": "CPU Core #1 Thread #1", "index": 1,
+                     "thread": 1, "load": 30.8}],
+        "units": {"temp": "°C", "clock": "MHz", "volt": "V", "dist": "°C", "load": "%"},
+      }
+
+    注意：温度的 P/E 编号与 Load 的「CPU Core #N」全局线程号不是同一套体系，
+    按序号强行合并会张冠李戴，因此线程占用单独放 threads，不写进 cores。
+    各平台传感器数量不同（笔记本 4P+8E、台式机 8P+16E，AMD 可能只有 CCD 温度），
+    所有数值字段都允许为 None，调用方必须容忍缺项。
+    """
+    cores = {}
+    threads = []
+    for lf in leaves:
+        parts = lf["path"].split("/")
+        if len(parts) < 5:
+            continue
+        # path = Sensor/<主机名>/<硬件名>/<类别>/<传感器名>
+        if cpu_name and parts[2] != cpu_name:
+            continue
+        category, sensor = parts[-2], parts[-1].strip()
+        value = num(lf["value"])
+        if value is None:
+            continue
+
+        m = CORE_SENSOR_RE.match(sensor)
+        if m:
+            field = CORE_FIELD_BY_CATEGORY.get(category)
+            if not field:
+                continue
+            if m.group("dist"):
+                if field != "temp":
+                    continue
+                field = "dist"
+            raw_kind = m.group("kind").lower()
+            prefix = "P" if raw_kind.startswith("p") else "E" if raw_kind.startswith("e") else "C"
+            index = int(m.group("index"))
+            cid = f"{prefix}{index}"
+            entry = cores.setdefault(cid, {
+                "id": cid, "label": f"{prefix} 核 {index}", "index": index,
+                "kind": prefix, "temp": None, "clock": None, "volt": None, "dist": None,
+            })
+            entry[field] = value
+            continue
+
+        t = THREAD_LOAD_RE.match(sensor)
+        if t and category == "Load":
+            threads.append({
+                "id": sensor,
+                "index": int(t.group("index")),
+                "thread": int(t.group("thread") or 0),
+                "load": value,
+            })
+
+    groups = []
+    for prefix, label in (("P", "性能核 (P)"), ("E", "能效核 (E)"), ("C", "核心")):
+        items = sorted(
+            (c for c in cores.values() if c["kind"] == prefix),
+            key=lambda c: c["index"],
+        )
+        if items:
+            groups.append({"kind": prefix, "label": label, "cores": items})
+
+    warm = [c for c in cores.values() if c["temp"] is not None]
+    hottest = max(warm, key=lambda c: c["temp"]) if warm else None
+    threads.sort(key=lambda t: (t["index"], t["thread"]))
+    return {
+        "available": bool(cores),
+        "count": len(cores),
+        "groups": groups,
+        "hottest": ({"id": hottest["id"], "label": hottest["label"], "temp": hottest["temp"]}
+                    if hottest else None),
+        "threads": threads,
+        "units": {"temp": "°C", "clock": "MHz", "volt": "V", "dist": "°C", "load": "%"},
+    }
+
+
+def core_layout(cores):
+    """把每核温度压成 (核心 id 顺序, JSON 数组)，供 core_samples 表存储。"""
+    flat = [c for group in (cores or {}).get("groups", []) for c in group["cores"]]
+    if not flat:
+        return None
+    layout = ",".join(c["id"] for c in flat)
+    temps = json.dumps([c["temp"] for c in flat], separators=(",", ":"))
+    return layout, temps
 
 
 # ---------------- 告警 ----------------
@@ -538,6 +687,8 @@ def build_snapshot(alert_tracker=None):
                 pick(leaves, "Clocks", "Core", cpu_name),
                 pick(leaves, "Clocks", "P-Core", cpu_name),
             ),
+            # 每核明细与聚合字段并列；只供详情弹层使用，不进告警规则与 samples 表。
+            "cores": collect_cpu_cores(leaves, cpu_name),
         }
         snap["gpu"] = {
             "name": gpu_name,
@@ -558,7 +709,16 @@ def build_snapshot(alert_tracker=None):
         snap["fan_cpu"] = pick(leaves, "Fans", "CPU Fan", cpu_name)
 
     g = snap.get("gpu") or {}
-    integrated = any(k in (g.get("name") or "").lower() for k in ("iris", "uhd"))
+    integrated = any(k in (g.get("name") or "").lower() for k in ("iris", "uhd", "arc"))
+    if integrated:
+        # 核显的 LHM 传感器命名与独显不同：3D 引擎占用叫 "D3D 3D"，
+        # 没有 "GPU Core"；顺带补共享显存，让笔记本面板不至于只剩两行。
+        g["load"] = first_valid(g.get("load"), pick(leaves, "Load", "D3D 3D", g.get("name")))
+        used = pick(leaves, "Data", "D3D Shared Memory Used", g.get("name"))
+        total = pick(leaves, "Data", "D3D Shared Memory Total", g.get("name"))
+        g["mem_used"] = used
+        g["mem_total"] = total
+        g["mem_pct"] = round(used / total * 100, 1) if used is not None and total else None
     snap["capabilities"] = {
         "device_class": "laptop" if integrated else "desktop",
         "integrated_gpu": integrated,
@@ -630,7 +790,7 @@ SAMPLE_FIELDS = {
     "cpu_temp": "cpu.temp", "cpu_core_max": "cpu.core_max", "cpu_power": "cpu.power",
     "cpu_load": "cpu.load", "gpu_core": "gpu.core", "gpu_hot": "gpu.hot",
     "gpu_mem": "gpu.mem", "gpu_power": "gpu.power", "gpu_load": "gpu.load",
-    "pin_volt": "gpu.pin_volt", "mem_pct": "mem.pct",
+    "pin_volt": "gpu.pin_volt", "cpu_volt": "cpu.volt", "mem_pct": "mem.pct",
 }
 
 
@@ -652,6 +812,7 @@ def db_session():
 
 
 def db_init():
+    """主表存聚合指标；每核温度另放 core_samples，不把宽表撑成几十列。"""
     with db_session() as conn:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
@@ -659,11 +820,25 @@ def db_init():
             CREATE TABLE IF NOT EXISTS samples (
                 ts INTEGER PRIMARY KEY,
                 cpu_temp REAL, cpu_core_max REAL, cpu_power REAL, cpu_load REAL,
+                cpu_volt REAL,
                 gpu_core REAL, gpu_hot REAL, gpu_mem REAL, gpu_power REAL, gpu_load REAL,
                 pin_volt REAL, mem_pct REAL
             )
         """)
+        # 旧库没有 cpu_volt 列：补一列（幂等），否则 CPU 电压迷你曲线读不到历史。
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(samples)")}
+        if "cpu_volt" not in cols:
+            conn.execute("ALTER TABLE samples ADD COLUMN cpu_volt REAL")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts)")
+        # layout = 逗号分隔的核心 id；temps = 与 layout 同序的 JSON 温度数组。
+        # 每行自带 layout，因此核心数变化（换机/BIOS 改动）后旧数据仍可正确解释。
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS core_samples (
+                ts INTEGER PRIMARY KEY,
+                layout TEXT NOT NULL,
+                temps TEXT NOT NULL
+            )
+        """)
 
 
 def store_sample(snap):
@@ -677,10 +852,24 @@ def store_sample(snap):
         )
 
 
+def store_core_sample(snap):
+    """降频写入每核温度；无每核传感器时静默跳过。"""
+    packed = core_layout((snap.get("cpu") or {}).get("cores"))
+    if not packed:
+        return
+    layout, temps = packed
+    with db_session() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO core_samples (ts, layout, temps) VALUES (?, ?, ?)",
+            (snap["ts"], layout, temps),
+        )
+
+
 def cleanup_samples():
     cutoff = int((time.time() - DB_RETENTION_DAYS * 86400) * 1000)
     with db_session() as conn:
         conn.execute("DELETE FROM samples WHERE ts < ?", (cutoff,))
+        conn.execute("DELETE FROM core_samples WHERE ts < ?", (cutoff,))
 
 
 def local_day_start(date_value=None):
@@ -725,6 +914,42 @@ def window_bounds(window):
     if window not in WINDOW_SECONDS:
         raise ValueError("window 仅支持 5m、1h 或 today")
     return now - WINDOW_SECONDS[window] * 1000, now, WINDOW_LABELS[window]
+
+
+def query_core_history(window, core_id):
+    """
+    返回单个核心的温度历史，时间窗语义与 query_history 一致。
+
+    每桶取第一个采样（core_samples 本身已按 30 秒降频），避免今日窗口返回上千点。
+    每行自带 layout，按 core_id 在其中定位下标；定位不到就置 None（断线），
+    这样核心布局变化不会把旧数据错误地画到另一颗核上。
+    """
+    start, end, label = window_bounds(window)
+    bucket = max(CORE_SAMPLE_EVERY * int(POLL_INTERVAL * 1000), int((end - start) / 119))
+    with db_session() as conn:
+        rows = conn.execute(
+            "SELECT ts, layout, temps FROM core_samples WHERE ts >= ? AND ts <= ? ORDER BY ts",
+            (start, end),
+        ).fetchall()
+
+    times, values, last_bucket = [], [], None
+    for row in rows:
+        b = row["ts"] // bucket
+        if b == last_bucket:
+            continue
+        last_bucket = b
+        try:
+            index = (row["layout"] or "").split(",").index(core_id)
+            value = json.loads(row["temps"])[index]
+        except (ValueError, IndexError, TypeError, json.JSONDecodeError):
+            value = None
+        times.append(row["ts"])
+        values.append(value)
+    return {
+        "core": core_id, "window": window, "label": label,
+        "t": times, "temp": values,
+        "_meta": {"start": start, "end": end, "bucket_ms": bucket, "samples": len(rows)},
+    }
 
 
 def _aggregate(start, end):
@@ -805,11 +1030,19 @@ def poller():
     global _state
     alert_tracker = {}
     last_cleanup = 0
+    sample_count = 0
     while True:
         try:
             snap = build_snapshot(alert_tracker)
+            sample_count += 1
             try:
                 store_sample(snap)
+                # 每核温度降频落库；它只是诊断视图，失败不影响主采样与页面告警。
+                if sample_count % CORE_SAMPLE_EVERY == 0:
+                    try:
+                        store_core_sample(snap)
+                    except Exception as e:
+                        snap["core_storage"] = {"ok": False, "error": str(e)[:120]}
                 snap["storage"] = {"ok": True, "error": None}
                 if time.time() - last_cleanup > 3600:
                     cleanup_samples()
@@ -882,7 +1115,7 @@ def trigger_wol():
         if prev is not None and now - _last_wol["ts"] < WOL_THROTTLE_SECONDS:
             return dict(prev, throttled=True)
         result = {"ok": False, "http_status": None, "error": None,
-                  "target": "VeT-PC", "ts": now, "throttled": False}
+                  "target": "DESKTOP-PC", "ts": now, "throttled": False}
         try:
             req = urllib.request.Request(
                 WOL_URL, headers={"User-Agent": "hwmon-tools/1.0"}
@@ -927,6 +1160,12 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         query = urllib.parse.parse_qs(parsed.query)
 
+        if path == "/favicon.ico":
+            # 浏览器默认会请求图标；返回空响应，避免控制台刷 404。
+            self.send_response(204)
+            self.end_headers()
+            return
+
         if path == "/api/snapshot":
             with _lock:
                 snap = _state.get("snapshot")
@@ -950,6 +1189,20 @@ class Handler(BaseHTTPRequestHandler):
             now = int(time.time() * 1000)
             data["_meta"] = {"window": "4m", "start": now - HIST_WINDOW_MS, "end": now, "bucket_ms": 2000}
             self._json(data)
+            return
+
+        if path == "/api/core_history":
+            window = (query.get("window") or ["5m"])[0]
+            core_id = (query.get("core") or [""])[0]
+            if not CORE_ID_RE.fullmatch(core_id):
+                self._json({"error": "core 参数应为 P1 / E1 这类核心 id"}, 400)
+                return
+            try:
+                self._json(query_core_history(window, core_id))
+            except ValueError as e:
+                self._json({"error": str(e)[:160]}, 400)
+            except Exception as e:
+                self._json({"error": str(e)[:160]}, 503)
             return
 
         if path == "/api/summary":
@@ -1038,6 +1291,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def dump_sensors():
+    """诊断入口：打印 LHM 全部叶子 + 每核汇总 + GPU-Z 末行。"""
     leaves = fetch_lhm()
     print(f"共 {len(leaves)} 个叶子节点\n")
     for lf in leaves:
@@ -1045,6 +1299,13 @@ def dump_sensors():
         if str(v).strip() in ("", "-"):
             continue
         print(f"{lf['path']}\t{v}")
+    cpu_name = _hw_name_any(leaves, ("Core i", "Ryzen", "Core Ultra"))
+    cores = collect_cpu_cores(leaves, cpu_name)
+    print(f"\n--- 每核汇总：{cores['count']} 核 · 最热 {cores['hottest']} ---")
+    for group in cores["groups"]:
+        print(f"{group['label']}: " + ", ".join(
+            f"{c['id']}={c['temp']}°C/{c['clock']}MHz" for c in group["cores"]
+        ))
     print("\n--- GPU-Z 最后一行 ---")
     gz, meta = fetch_gpuz()
     print(json.dumps({"values": gz, "meta": meta}, ensure_ascii=False, indent=2))

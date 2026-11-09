@@ -1,9 +1,27 @@
+# 真实配置与凭据
 push_config.json
-*.log
+**/push_config.json
+*.key
+*.pem
+id_ed25519*
+.env
+*.env
+
+# 运行数据
 *.db
 *.db-wal
 *.db-shm
-__pycache__/
-*.pyc
-.workbuddy/
+gpuz.csv
+state/
+*.log
+
+# 备份、产物、缓存
+backups/
+_backup_*/
 *.zip
+*.png
+*.pyc
+__pycache__/
+.playwright-mcp/
+.workbuddy/
+ui-preview.html
