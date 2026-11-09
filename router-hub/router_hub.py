@@ -635,6 +635,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
+        if path == "/favicon.ico":
+            # 浏览器默认请求图标；返回空响应，避免控制台刷 404。
+            self.send_response(204)
+            self.end_headers()
+            return
         if path.startswith("/hw/"):
             return self._hw()
         if path in ("/", "/index.html", "/monitor", "/monitor.html"):

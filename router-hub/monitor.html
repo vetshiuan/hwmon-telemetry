@@ -112,9 +112,10 @@ button{font-family:inherit}
 .core-tr.core-th{color:var(--dim2);font-size:10px;cursor:default;background:rgba(255,255,255,.03)}
 .core-tr:not(.core-th):hover{background:rgba(96,165,250,.1)}
 .core-tr.selected{background:rgba(96,165,250,.16);outline:1px solid rgba(96,165,250,.3)}
-.core-tr.hottest>span:first-child{color:var(--warn)}
+/* 「最热核心」只是排名，不是告警：蓝色系 + 文字标记，避免误读成黄色越限 */
+.core-tr.hottest>span:first-child{color:var(--blue);font-weight:600}
 .core-tr .v{color:var(--txt);font-variant-numeric:tabular-nums}
-.core-tr.hottest .v{color:var(--warn)}
+.core-tr.hottest .v{color:#bfdbfe}
 .core-threads{margin:4px 0 2px}
 .core-threads summary{cursor:pointer;font-size:10.5px;color:var(--dim2);padding:5px 0}
 .core-thread-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 12px;padding:4px 0}
@@ -308,9 +309,13 @@ function sourceText(s){
 function renderHealth(s){
   const h=s.health||{status:'ok',label:'运行正常'},alerts=s.alerts||[],box=document.getElementById('health');
   box.className='health '+h.status;document.getElementById('healthTitle').textContent=h.label;
-  document.getElementById('healthDetail').innerHTML=alerts.length?alerts.slice(0,3).map(a=>`<div><b>${escapeHtml(a.message)}</b>${durationText(a)}<span class="alert-rule">${escapeHtml(a.rule||'')}</span></div>`).join(''):'温度、电压、资源与数据源均未发现异常';
+  // 按 数据源故障 > 硬件越限 > 资源提示 排序，重要信息不被资源提示挤掉。
+  const rank=a=>a.category==='source'?0:a.category==='resource'?2:1;
+  const top=[...alerts].sort((a,b)=>rank(a)-rank(b)).slice(0,3);
+  document.getElementById('healthDetail').innerHTML=top.length?top.map(a=>`<div><b>${escapeHtml(a.message)}</b>${durationText(a)}<span class="alert-rule">${escapeHtml(a.rule||'')}</span></div>`).join(''):'温度、电压、资源与数据源均未发现异常';
   const age=Number.isFinite(s.snapshot_age_ms)?` · ${Math.round(s.snapshot_age_ms/1000)} 秒前采样`:'';
-  document.getElementById('healthMeta').textContent=`采样时间 ${formatTime(s.ts)}${age} · ${sourceText(s)}`;
+  const res=h.resource?` · 资源提示 ${h.resource} 项（不计入健康状态）`:'';
+  document.getElementById('healthMeta').textContent=`采样时间 ${formatTime(s.ts)}${age} · ${sourceText(s)}${res}`;
   document.getElementById('sourceFoot').textContent=sourceText(s);
 }
 function barRow(k,pct,valHtml,cls='',title='',rowCls=''){
@@ -347,16 +352,28 @@ function renderVoltageSparks(h){
       [11.8,12.6].forEach(v=>{g.beginPath();g.moveTo(0,y(v));g.lineTo(w,y(v));g.stroke()});
       g.setLineDash([]);
     }
-    const pts=((h&&h[key])||[]).filter(Number.isFinite);
-    if(pts.length<2){g.fillStyle='#667286';g.font='10px sans-serif';g.textAlign='center';g.fillText('等待历史采样',w/2,ht/2+3);return}
-    const x=i=>2+i/(pts.length-1)*(w-4);
+    // 与主图 drawChart 一致：按真实时间戳定位，null 处断开，不压缩时间轴。
+    const times=(h&&h.t)||[],raw=(h&&h[key])||[];
+    if(raw.filter(Number.isFinite).length<2||times.length<2){
+      g.fillStyle='#667286';g.font='10px sans-serif';g.textAlign='center';
+      g.fillText('等待历史采样',w/2,ht/2+3);return;
+    }
+    const t0=times[0],span=Math.max(1,times[times.length-1]-t0);
+    const x=t=>2+(t-t0)/span*(w-4);
     // 曲线颜色跟随实际告警等级：正常就是蓝色，别把 11.9V 画成预警黄。
     const sev=cv.dataset.severity;
     const color=sev==='bad'?'#fb7185':sev==='warn'?'#fbbf24':'#60a5fa';
     g.beginPath();g.strokeStyle=color;g.lineWidth=1.6;g.lineJoin='round';
-    pts.forEach((v,i)=>i?g.lineTo(x(i),y(v)):g.moveTo(x(i),y(v)));
+    let open=false,last=null;
+    for(let i=0;i<raw.length;i++){
+      const v=raw[i],t=times[i];
+      if(!Number.isFinite(v)||!Number.isFinite(t)){open=false;continue}
+      const xx=x(t),yy=y(v);
+      if(!open){g.moveTo(xx,yy);open=true}else g.lineTo(xx,yy);
+      last=[xx,yy];
+    }
     g.stroke();
-    g.beginPath();g.arc(x(pts.length-1),y(pts[pts.length-1]),2,0,Math.PI*2);g.fillStyle=color;g.fill();
+    if(last){g.beginPath();g.arc(last[0],last[1],2,0,Math.PI*2);g.fillStyle=color;g.fill()}
   });
 }
 function renderDetail(s){
@@ -662,6 +679,12 @@ const CoreInspector=(()=>{
       });
       tr.classList.toggle('hottest',x.id===hot);
       tr.classList.toggle('selected',x.id===selected);
+      // 用文字而非颜色标明「最热」，避免和黄色告警混淆。
+      const nameEl=tr.querySelector('span:first-child');
+      if(nameEl){
+        const label=x.id===hot?`${x.label} · 最热`:x.label;
+        if(nameEl.textContent!==label)nameEl.textContent=label;
+      }
     });
     const tmap=new Map((c.threads||[]).map(t=>[t.id,t]));
     $('corePopBody').querySelectorAll('.core-thread[data-thread]').forEach(el=>{
@@ -670,7 +693,10 @@ const CoreInspector=(()=>{
       el.querySelector('.v').textContent=`${fmt(t.load,0)}%`;
     });
     const sub=$('corePopSub');
-    const txt=`${c.count} 个物理核心 · ${c.hottest?`最热 ${c.hottest.label} ${fmt(c.hottest.temp,1)}°C`:''} · 点击核心行看曲线`;
+    const spread=Number.isFinite(c.spread)?` · 温差 ${fmt(c.spread,1)}°C`:'';
+    const top=history?._meta?.hottest_top;
+    const topText=top?` · 区间最热 ${top.id} ${top.pct}%`:'';
+    const txt=`${c.count} 个物理核心 · ${c.hottest?`最热 ${c.hottest.label} ${fmt(c.hottest.temp,1)}°C`:''}${spread}${topText} · 点击核心行看曲线`;
     if(sub.textContent!==txt)sub.textContent=txt;
   }
 
@@ -696,7 +722,7 @@ const CoreInspector=(()=>{
     const d=await fetchJSON(peer,`/api/core_history?core=${encodeURIComponent(id)}&window=${chartRange}`,5000);
     if(my!==reqSeq||!anchor||id!==selected)return;
     history=d&&Array.isArray(d.t)?d:null;
-    drawSpark();
+    drawSpark();renderValues(); // 同时刷新「区间最热」统计
   }
 
   /* 轻量折线：只画单核温度，不复用主图 drawChart（那套绑定了 legend / tip） */

@@ -24,7 +24,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from collections import deque
+from collections import deque, Counter
 from contextlib import contextmanager
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
@@ -59,6 +59,15 @@ ALERT_HOLD_SAMPLES = 3
 # 它是实时诊断视图，不与主 samples 表同频，也不参与 /api/summary 聚合。
 CORE_SAMPLE_EVERY = 15
 CORE_ID_RE = re.compile(r"[PEC]\d{1,2}")
+
+# 16pin 读数断更只是「看不见了」，不是电压异常：连续 2 分钟才提示，且只给 warn。
+GPUZ_BLIND_SECONDS = 120
+_gpuz_state = {"down_since": 0.0}
+
+# 每周用 SQLite 在线备份 API 复制一次数据库，保留最近 4 份。
+DB_BACKUP_INTERVAL_DAYS = 7
+DB_BACKUP_KEEP = 4
+_backup_state = {"last": None}
 
 # 工具页依赖：EasyTier CLI 与路由器 WOL 地址（均可用环境变量覆盖）
 EASYTIER_CLI = os.environ.get("EASYTIER_CLI") or default_easytier_cli()
@@ -433,6 +442,9 @@ def collect_cpu_cores(leaves, cpu_name=None):
 
     warm = [c for c in cores.values() if c["temp"] is not None]
     hottest = max(warm, key=lambda c: c["temp"]) if warm else None
+    coolest = min(warm, key=lambda c: c["temp"]) if warm else None
+    # 核间温差比单看最热值更早反映硅脂/散热器问题；只有一颗核有温度时不计算。
+    spread = round(hottest["temp"] - coolest["temp"], 1) if hottest and coolest else None
     threads.sort(key=lambda t: (t["index"], t["thread"]))
     return {
         "available": bool(cores),
@@ -440,19 +452,23 @@ def collect_cpu_cores(leaves, cpu_name=None):
         "groups": groups,
         "hottest": ({"id": hottest["id"], "label": hottest["label"], "temp": hottest["temp"]}
                     if hottest else None),
+        "coolest": ({"id": coolest["id"], "label": coolest["label"], "temp": coolest["temp"]}
+                    if coolest else None),
+        "spread": spread,
         "threads": threads,
         "units": {"temp": "°C", "clock": "MHz", "volt": "V", "dist": "°C", "load": "%"},
     }
 
 
 def core_layout(cores):
-    """把每核温度压成 (核心 id 顺序, JSON 数组)，供 core_samples 表存储。"""
+    """把每核温度压成 (核心 id 顺序, JSON 温度数组, 最热核心 id)，供 core_samples 存储。"""
     flat = [c for group in (cores or {}).get("groups", []) for c in group["cores"]]
     if not flat:
         return None
     layout = ",".join(c["id"] for c in flat)
     temps = json.dumps([c["temp"] for c in flat], separators=(",", ":"))
-    return layout, temps
+    hottest = (cores.get("hottest") or {}).get("id") or ""
+    return layout, temps, hottest
 
 
 # ---------------- 告警 ----------------
@@ -565,28 +581,37 @@ def evaluate_metric_alerts(snap, tracker):
 
 
 def source_alerts(snap):
+    """数据源类告警：与硬件越限、资源提示分级，避免互相淹没。"""
     now = int(time.time() * 1000)
     alerts = []
     sources = snap.get("sources") or {}
-    meta = snap.get("source_meta") or {}
     caps = snap.get("capabilities") or {}
 
-    def add(key, label, severity, message):
+    def add(key, label, severity, message, rule="数据源必须持续更新"):
         alerts.append({
             "key": key, "label": label, "value": None, "unit": "",
             "severity": severity, "state": severity, "since": now,
-            "message": message, "rule": "数据源必须持续更新",
+            "message": message, "rule": rule, "category": "source",
         })
 
     if not sources.get("lhm"):
-        add("source.lhm", "LHM", "bad", "LHM 断开，CPU / 内存 / 磁盘数据不可用")
+        add("source.lhm", "LHM", "bad",
+            "LHM 断开或 8085 无监听（需 SYSTEM/管理员启动），CPU / 内存 / 磁盘数据不可用")
     elif (snap.get("cpu") or {}).get("temp") is None:
         add("data.cpu_temp", "CPU 温度", "warn", "LHM 在线，但 CPU 温度无有效数据")
 
+    # 16pin 读数断更 = 可观测性故障，不是电压异常：只给 warn，
+    # 且连续 2 分钟才提示，避免 GPU-Z GUI 短暂不刷新造成误报。
     if caps.get("gpuz_expected") and not sources.get("gpuz"):
-        age = (meta.get("gpuz") or {}).get("age_ms")
-        suffix = f"，已 {round(age / 1000)} 秒未更新" if isinstance(age, (int, float)) else ""
-        add("source.gpuz", "GPU-Z", "warn", "GPU-Z 数据不可用" + suffix)
+        if not _gpuz_state["down_since"]:
+            _gpuz_state["down_since"] = time.time()
+        down = time.time() - _gpuz_state["down_since"]
+        if down >= GPUZ_BLIND_SECONDS:
+            add("source.gpuz", "16pin 电压监测", "warn",
+                f"GPU-Z 已 {int(down / 60)} 分钟无更新，16pin 电压读数不可用（非电压异常）",
+                "连续 2 分钟无更新才提示；电压真实越限另有独立告警")
+    else:
+        _gpuz_state["down_since"] = 0.0
     return alerts
 
 
@@ -614,14 +639,18 @@ def resource_alerts(snap):
 
 
 def build_health(snap):
+    """资源提示不参与健康状态判定，只单独计数，避免内存占用盖住硬件/数据源告警。"""
     alerts = snap.get("alerts") or []
-    bad = sum(a.get("severity") == "bad" for a in alerts)
-    warn = sum(a.get("severity") == "warn" for a in alerts)
+    active = [a for a in alerts if a.get("category") != "resource"]
+    bad = sum(a.get("severity") == "bad" for a in active)
+    warn = sum(a.get("severity") == "warn" for a in active)
+    resource = sum(a.get("category") == "resource" for a in alerts)
     status = "bad" if bad else "warn" if warn else "ok"
     label = "运行正常" if status == "ok" else f"{bad} 项严重" if bad else f"{warn} 项预警"
     if warn and bad:
         label += f" · {warn} 项预警"
-    return {"status": status, "label": label, "bad": bad, "warn": warn}
+    return {"status": status, "label": label, "bad": bad, "warn": warn,
+            "resource": resource}
 
 
 def with_freshness(snapshot):
@@ -840,9 +869,14 @@ def db_init():
             CREATE TABLE IF NOT EXISTS core_samples (
                 ts INTEGER PRIMARY KEY,
                 layout TEXT NOT NULL,
-                temps TEXT NOT NULL
+                temps TEXT NOT NULL,
+                hottest TEXT NOT NULL DEFAULT ''
             )
         """)
+        # 旧库补 hottest 列（幂等），用于统计「哪颗核长期最热」。
+        core_cols = {row[1] for row in conn.execute("PRAGMA table_info(core_samples)")}
+        if "hottest" not in core_cols:
+            conn.execute("ALTER TABLE core_samples ADD COLUMN hottest TEXT NOT NULL DEFAULT ''")
 
 
 def store_sample(snap):
@@ -861,11 +895,11 @@ def store_core_sample(snap):
     packed = core_layout((snap.get("cpu") or {}).get("cores"))
     if not packed:
         return
-    layout, temps = packed
+    layout, temps, hottest = packed
     with db_session() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO core_samples (ts, layout, temps) VALUES (?, ?, ?)",
-            (snap["ts"], layout, temps),
+            "INSERT OR REPLACE INTO core_samples (ts, layout, temps, hottest) VALUES (?, ?, ?, ?)",
+            (snap["ts"], layout, temps, hottest),
         )
 
 
@@ -932,7 +966,7 @@ def query_core_history(window, core_id):
     bucket = max(CORE_SAMPLE_EVERY * int(POLL_INTERVAL * 1000), int((end - start) / 119))
     with db_session() as conn:
         rows = conn.execute(
-            "SELECT ts, layout, temps FROM core_samples WHERE ts >= ? AND ts <= ? ORDER BY ts",
+            "SELECT ts, layout, temps, hottest FROM core_samples WHERE ts >= ? AND ts <= ? ORDER BY ts",
             (start, end),
         ).fetchall()
 
@@ -949,10 +983,16 @@ def query_core_history(window, core_id):
             value = None
         times.append(row["ts"])
         values.append(value)
+    # 顺便统计窗口内「哪颗核最热」，供弹层展示是否长期同一颗核在顶。
+    counts = Counter(r["hottest"] for r in rows if r["hottest"])
+    top = counts.most_common(1)[0] if counts else None
+    hottest_top = ({"id": top[0], "pct": round(top[1] * 100 / max(1, len(rows)))}
+                   if top else None)
     return {
         "core": core_id, "window": window, "label": label,
         "t": times, "temp": values,
-        "_meta": {"start": start, "end": end, "bucket_ms": bucket, "samples": len(rows)},
+        "_meta": {"start": start, "end": end, "bucket_ms": bucket,
+                  "samples": len(rows), "hottest_top": hottest_top},
     }
 
 
@@ -1050,6 +1090,11 @@ def poller():
                 snap["storage"] = {"ok": True, "error": None}
                 if time.time() - last_cleanup > 3600:
                     cleanup_samples()
+                    # 每周在线备份；失败只记录，不影响采样与页面。
+                    try:
+                        _backup_state["last"] = maybe_backup_db()
+                    except Exception as e:
+                        _backup_state["last"] = {"ok": False, "error": str(e)[:120]}
                     last_cleanup = time.time()
             except Exception as storage_error:
                 snap["storage"] = {"ok": False, "error": str(storage_error)[:120]}
@@ -1057,8 +1102,10 @@ def poller():
                     "key": "storage.daily", "label": "今日统计存储", "value": None, "unit": "",
                     "severity": "warn", "state": "warn", "since": snap["ts"],
                     "message": "今日统计采样写入失败", "rule": str(storage_error)[:120],
+                    "category": "source",
                 })
                 snap["health"] = build_health(snap)
+            snap["db_backup"] = _backup_state["last"]
             with _lock:
                 _state = {"snapshot": snap, "ts": time.time(), "err": None}
                 g = snap.get("gpu") or {}
@@ -1133,6 +1180,69 @@ def trigger_wol():
             result["error"] = str(e)[:200]
         _last_wol.update(ts=now, result=result)
         return result
+
+
+# ---------------- 自检与备份 ----------------
+
+def lhm_diagnostics(snap):
+    """/health 用：8085 监听、LHM 错误与 agent 权限提示（毫秒级，不额外请求 LHM）。"""
+    listening = False
+    try:
+        with socket.create_connection(("127.0.0.1", 8085), timeout=0.4):
+            listening = True
+    except OSError:
+        pass
+    meta = (snap.get("source_meta") or {}).get("lhm") or {}
+    try:
+        elevated = bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        elevated = False
+    return {
+        "available": bool((snap.get("sources") or {}).get("lhm")),
+        "web_server_port": 8085,
+        "port_listening": listening,
+        "error": meta.get("error"),
+        "agent_elevated": elevated,
+        "hint": "" if listening else "8085 未监听：LHM 需以 SYSTEM/管理员身份启动",
+    }
+
+
+def maybe_backup_db():
+    """每周用 SQLite 在线备份 API 复制一次 hwmon.db，保留最近 4 份。
+
+    在线备份能正确处理 WAL，不能直接 copy 文件；可用 HWMON_BACKUP_DIR 改目标目录。
+    """
+    backup_dir = (os.environ.get("HWMON_BACKUP_DIR")
+                  or os.path.join(os.path.dirname(DB_PATH), "backups", "db"))
+    os.makedirs(backup_dir, exist_ok=True)
+    stamp = os.path.join(backup_dir, ".last_backup")
+    now = time.time()
+    try:
+        with open(stamp, "r", encoding="utf-8") as f:
+            last = float((f.read() or "0").strip())
+    except (OSError, ValueError):
+        last = 0.0
+    if now - last < DB_BACKUP_INTERVAL_DAYS * 86400:
+        return {"ok": True, "skipped": True}
+    target = os.path.join(backup_dir, "hwmon-%s.db" % dt.datetime.now().strftime("%Y%m%d"))
+    src, dst = db_connect(), sqlite3.connect(target)
+    try:
+        with dst:
+            src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
+    with open(stamp, "w", encoding="utf-8") as f:
+        f.write(str(now))
+    files = sorted(n for n in os.listdir(backup_dir)
+                   if n.startswith("hwmon-") and n.endswith(".db"))
+    for name in files[:-DB_BACKUP_KEEP]:
+        try:
+            os.remove(os.path.join(backup_dir, name))
+        except OSError:
+            pass
+    return {"ok": True, "skipped": False, "path": target,
+            "kept": len(files[-DB_BACKUP_KEEP:])}
 
 
 # ---------------- HTTP ----------------
@@ -1264,6 +1374,8 @@ class Handler(BaseHTTPRequestHandler):
                     "health": current["health"],
                     "snapshot_age_ms": current["snapshot_age_ms"],
                     "sources": current["sources"],
+                    "lhm": lhm_diagnostics(current),
+                    "db_backup": current.get("db_backup"),
                 })
             return
 
