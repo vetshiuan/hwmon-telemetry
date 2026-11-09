@@ -479,13 +479,17 @@ def _temp_state(value, rule, active):
 
 
 def _pin_state(value, active):
+    """16pin 电压分级。阈值统一取自 ALERT_RULES，避免多处硬编码不一致。"""
     if value is None:
         return "ok"
-    if value < 11.4 or value > 12.6:
+    rule = ALERT_RULES["gpu.pin_volt"]
+    warn_low, bad_low, bad_high = rule["warn_low"], rule["bad_low"], rule["bad_high"]
+    if value < bad_low or value > bad_high:
         return "bad"
-    if active == "bad" and (value < 11.5 or value > 12.5):
+    if active == "bad" and (value < bad_low + 0.1 or value > bad_high - 0.1):
         return "bad"
-    if value <= 11.8 or (active in ("warn", "bad") and value <= 11.9):
+    # 滞回只留 0.05V：11.9V 属于正常区间，不该因为曾经预警过就一直挂黄色。
+    if value <= warn_low or (active in ("warn", "bad") and value <= warn_low + 0.05):
         return "warn"
     return "ok"
 

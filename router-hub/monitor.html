@@ -42,6 +42,8 @@ button{font-family:inherit}
 @media(min-width:560px){.hero{gap:12px}}
 @media(min-width:900px){.hero{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}}
 @media(min-width:900px){.hero[data-cols="3"]{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* 只有 2 张卡时收窄并居中，避免两张卡各占近 500px 显得空 */
+@media(min-width:900px){.hero[data-cols="2"]{grid-template-columns:repeat(2,minmax(0,1fr));max-width:760px;margin-left:auto;margin-right:auto}}
 .card{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.025),transparent),var(--panel);border:1px solid var(--line);border-radius:15px;padding:14px 9px 11px;display:flex;flex-direction:column;align-items:center;min-width:0;overflow:hidden;transition:border-color .2s}
 .card.warn{border-color:rgba(251,191,36,.42)}.card.bad{border-color:rgba(251,113,133,.55)}.card.unknown{opacity:.68}
 /* canvas 与文字层都必须强制透明：Chrome 强制深色 / Dark Reader 会给这两层注入
@@ -235,9 +237,9 @@ const isLaptop=s=>(s.capabilities?.device_class? s.capabilities.device_class==='
 
 function pickCards(s){
   // 卡片只放「与下方详情不重复」的总览值；电压等细节一律放到详情栏底部画迷你曲线。
-  // 台式 4 张 / 笔记本 3 张，恰好能被 4 列 / 3 列整除，宽屏下一行填满不留白。
+  // 台式 4 张 / 笔记本 2 张，配合 data-cols 用 4 列 / 2 列，宽屏下一行填满不留白。
   const keys=isLaptop(s)
-    ?['cpuTemp','cpuCoreMax','cpuPower']
+    ?['cpuTemp','cpuCoreMax']
     :['cpuTemp','cpuCoreMax','gpuCore','gpuHot'];
   return keys.map(k=>HERO_POOL.find(c=>c.k===k)).filter(Boolean);
 }
@@ -265,8 +267,8 @@ window.addEventListener('resize',()=>{
 });
 function rebuildHero(cards){
   const host=document.getElementById('hero');
-  // 6 张卡 → 3 列、8 张卡 → 4 列，宽屏下两行正好填满，末行不留空格。
-  host.dataset.cols = cards.length % 4 === 0 ? '4' : cards.length % 3 === 0 ? '3' : '4';
+  // 按卡片数选能整除的列数（4 张→4 列、3 张→3 列、2 张→2 列），末行不留空格。
+  host.dataset.cols = cards.length % 4 === 0 ? '4' : cards.length % 3 === 0 ? '3' : String(Math.min(cards.length, 4));
   host.innerHTML=cards.map(cfg=>`<div class="card unknown" data-k="${cfg.k}">
     ${cfg.kind==='metric'?`<div class="metric-box"><div class="num">--</div><div class="unit">${cfg.u}</div></div>`:`<div class="ring"><canvas></canvas><div class="val"><div class="num">--</div><div class="unit">${cfg.u}</div></div></div>`}
     <div class="name">${cfg.t}</div><div class="meta"></div><div class="state">等待数据</div></div>`).join('');
@@ -325,11 +327,11 @@ function metricRow(label,value,unit,pct,key,s,dp=1){
    renderDetail() 各调一次，保证详情栏每 2 秒重建 DOM 后曲线仍在。
 */
 function sparkRow(label,key,value,unit,dp,s,alertKey){
-  const a=alertKey?alertsOf(s)[alertKey]:null;
+  const a=alertKey?alertsOf(s)[alertKey]:null,sev=a?.severity||'';
   const val=Number.isFinite(value)?`${value.toFixed(dp)}<small>${unit}</small>`:`--<small>${unit}</small>`;
   return`<div class="row volt-row"><div class="k">${escapeHtml(label)}</div>`+
-    `<div class="spark-wrap"><canvas class="spark" data-spark="${key}"></canvas></div>`+
-    `<div class="v ${a?.severity||''}">${val}</div></div>`;
+    `<div class="spark-wrap"><canvas class="spark" data-spark="${key}" data-severity="${sev}"></canvas></div>`+
+    `<div class="v ${sev}">${val}</div></div>`;
 }
 function renderVoltageSparks(h){
   document.querySelectorAll('canvas.spark').forEach(cv=>{
@@ -348,10 +350,13 @@ function renderVoltageSparks(h){
     const pts=((h&&h[key])||[]).filter(Number.isFinite);
     if(pts.length<2){g.fillStyle='#667286';g.font='10px sans-serif';g.textAlign='center';g.fillText('等待历史采样',w/2,ht/2+3);return}
     const x=i=>2+i/(pts.length-1)*(w-4);
-    g.beginPath();g.strokeStyle=key==='pin_volt'?'#fbbf24':'#60a5fa';g.lineWidth=1.6;g.lineJoin='round';
+    // 曲线颜色跟随实际告警等级：正常就是蓝色，别把 11.9V 画成预警黄。
+    const sev=cv.dataset.severity;
+    const color=sev==='bad'?'#fb7185':sev==='warn'?'#fbbf24':'#60a5fa';
+    g.beginPath();g.strokeStyle=color;g.lineWidth=1.6;g.lineJoin='round';
     pts.forEach((v,i)=>i?g.lineTo(x(i),y(v)):g.moveTo(x(i),y(v)));
     g.stroke();
-    g.beginPath();g.arc(x(pts.length-1),y(pts[pts.length-1]),2,0,Math.PI*2);g.fillStyle=g.strokeStyle;g.fill();
+    g.beginPath();g.arc(x(pts.length-1),y(pts[pts.length-1]),2,0,Math.PI*2);g.fillStyle=color;g.fill();
   });
 }
 function renderDetail(s){
