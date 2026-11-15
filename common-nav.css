@@ -1,0 +1,1413 @@
+/* =====================================================================
+ * common-nav.css —— 全站统一视觉基底 v3（四套高定主题 · 聚光灯 · 点击波纹）
+ * 适用页面：monitor.html / ui.html / llm.html / app.html / index.html / tools.html
+ * ===================================================================== */
+
+:root {
+  --p1: #ff5e1a;
+  --p2: #ffb347;
+  --p3: #ff3b5c;
+  --grad-main: linear-gradient(90deg, #ff5e1a, #ffb347);
+  --grad-ribbon: linear-gradient(90deg, rgba(255, 94, 26, 0), #ff5e1a, #ffb347, rgba(255, 179, 71, 0));
+  --surface-bg: rgba(17, 17, 23, .66);
+  --surface-img: none;
+  --surface-2: rgba(10, 10, 15, .64);
+  --line: rgba(255, 255, 255, .095);
+  --border-glow: rgba(255, 115, 45, .56);
+  --spot: rgba(255, 110, 40, .24);
+  --ripple: rgba(255, 140, 66, .35);
+  --topbar-bg: rgba(10, 10, 14, .78);
+  --thead-bg: rgba(12, 12, 17, .96);
+  --radius: 18px;
+  --radius-sm: 11px;
+  --txt: #f6f3ee;
+  --dim: #a8a29e;
+  --dim2: #6e6963;
+  --ok: #34d399;
+  --warn: #ffb347;
+  --bad: #ff3b5c;
+  --blue: #ff8a4c;
+  --cyan: #ffb347;
+  /* 流动带：首尾同色闭合，配 background-size + 位移一个周期才能无缝循环 */
+  --grad-flow: linear-gradient(90deg, #a82a00, #e04a00, #ff5e1a, #ffb347, #ff8a4c, #e04a00, #a82a00);
+  --grad-flow-warn: linear-gradient(90deg, #c2740a, #fbbf24, #fde68a, #fbbf24, #c2740a);
+  --grad-flow-bad: linear-gradient(90deg, #b01a3c, #fb7185, #fecdd3, #fb7185, #b01a3c);
+  --flow-period: 240px;
+  --flow-duration: 10s;
+  --bg: #08080b;
+}
+
+body[data-theme="hypercar"] {
+  color-scheme: dark;
+  --p1: #ff5e1a;
+  --p2: #ffb347;
+  --p3: #ff3b5c;
+  --grad-main: linear-gradient(90deg, #ff5e1a 0%, #ffb347 100%);
+  --grad-ribbon: linear-gradient(90deg, rgba(255, 94, 26, 0), #ff5e1a 22%, #ffb347 62%, rgba(255, 179, 71, 0));
+  --surface-bg: rgba(17, 17, 23, .66);
+  --surface-img: linear-gradient(165deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .01));
+  --surface-2: rgba(10, 10, 15, .66);
+  --line: rgba(255, 255, 255, .095);
+  --border-glow: rgba(255, 115, 45, .56);
+  --spot: rgba(255, 110, 40, .24);
+  --ripple: rgba(255, 140, 66, .36);
+  --topbar-bg: rgba(10, 10, 14, .78);
+  --thead-bg: rgba(12, 12, 17, .96);
+  --radius: 18px;
+  --radius-sm: 11px;
+  --txt: #f6f3ee;
+  --dim: #a8a29e;
+  --dim2: #6e6963;
+  --warn: #ffb347;
+  --bad: #ff3b5c;
+  --blue: #ff8a4c;
+  --cyan: #ffb347;
+  /* 流动带：首尾同色闭合，配 background-size + 位移一个周期才能无缝循环 */
+  --grad-flow: linear-gradient(90deg, #a82a00, #e04a00, #ff5e1a, #ffb347, #ff8a4c, #e04a00, #a82a00);
+  --grad-flow-warn: linear-gradient(90deg, #c2740a, #fbbf24, #fde68a, #fbbf24, #c2740a);
+  --grad-flow-bad: linear-gradient(90deg, #b01a3c, #fb7185, #fecdd3, #fb7185, #b01a3c);
+  --flow-period: 240px;
+  --flow-duration: 10s;
+  --bg: #08080b;
+}
+
+body[data-theme="prism"] {
+  color-scheme: dark;
+  --p1: #ec4899;
+  --p2: #8b5cf6;
+  --p3: #22d3ee;
+  --grad-main: linear-gradient(90deg, #ec4899 0%, #8b5cf6 55%, #22d3ee 100%);
+  --grad-ribbon: linear-gradient(90deg, rgba(236, 72, 153, 0), #ec4899 24%, #8b5cf6 56%, rgba(34, 211, 238, 0));
+  --surface-bg: rgba(18, 14, 34, .54);
+  --surface-img: linear-gradient(165deg, rgba(236, 72, 153, .06), rgba(34, 211, 238, .02));
+  --surface-2: rgba(11, 8, 24, .58);
+  --line: rgba(216, 180, 254, .14);
+  --border-glow: rgba(236, 72, 153, .62);
+  --spot: rgba(236, 72, 153, .24);
+  --ripple: rgba(236, 72, 153, .38);
+  --topbar-bg: rgba(10, 7, 20, .76);
+  --thead-bg: rgba(14, 10, 26, .96);
+  --radius: 22px;
+  --radius-sm: 13px;
+  --txt: #faf5ff;
+  --dim: #c4b5fd;
+  --dim2: #7c6ba8;
+  --warn: #fbbf24;
+  --bad: #fb7185;
+  --blue: #a78bfa;
+  --cyan: #22d3ee;
+  --grad-flow: linear-gradient(90deg, #7c3aed, #a855f7, #d946ef, #ec4899, #f472b6, #a5f3fc, #67e8f9, #818cf8, #7c3aed);
+  --grad-flow-warn: linear-gradient(90deg, #c2740a, #fbbf24, #fde68a, #fbbf24, #c2740a);
+  --grad-flow-bad: linear-gradient(90deg, #b01a3c, #fb7185, #fecdd3, #fb7185, #b01a3c);
+  --flow-period: 240px;
+  --flow-duration: 12s;
+  --bg: #06040e;
+}
+
+body[data-theme="gold"] {
+  color-scheme: dark;
+  --p1: #b8893a;
+  --p2: #f6e2b3;
+  --p3: #2dd4bf;
+  --grad-main: linear-gradient(90deg, #9a6e28 0%, #f6e2b3 52%, #c99742 100%);
+  --grad-ribbon: linear-gradient(90deg, rgba(184, 137, 58, 0), #b8893a 30%, #f6e2b3 62%, rgba(184, 137, 58, 0));
+  --surface-bg: rgba(24, 21, 16, .74);
+  --surface-img: linear-gradient(155deg, rgba(229, 193, 123, .07), rgba(14, 13, 10, .25));
+  --surface-2: rgba(16, 14, 11, .76);
+  --line: rgba(229, 193, 123, .22);
+  --border-glow: rgba(229, 193, 123, .68);
+  --spot: rgba(229, 193, 123, .22);
+  --ripple: rgba(229, 193, 123, .36);
+  --topbar-bg: rgba(12, 11, 9, .82);
+  --thead-bg: rgba(19, 17, 13, .97);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --txt: #faf5eb;
+  --dim: #b8ad98;
+  --dim2: #7a7059;
+  --warn: #fbbf24;
+  --bad: #fb7185;
+  --blue: #e5c17b;
+  --cyan: #2dd4bf;
+  --grad-flow: linear-gradient(90deg, #8a6420, #b8893a, #e5c17b, #f6e2b3, #e5c17b, #b8893a, #8a6420);
+  --grad-flow-warn: linear-gradient(90deg, #a16207, #fbbf24, #fef3c7, #fbbf24, #a16207);
+  --grad-flow-bad: linear-gradient(90deg, #b01a3c, #fb7185, #fecdd3, #fb7185, #b01a3c);
+  --flow-period: 240px;
+  --flow-duration: 14s;
+  --bg: #0b0a08;
+}
+
+body[data-theme="rainbow"] {
+  color-scheme: dark;
+  --p1: #ff5e7e;
+  --p2: #22d3ee;
+  --p3: #a855f7;
+  --grad-main: linear-gradient(90deg, #ff5e7e 0%, #fbbf24 26%, #34d399 50%, #22d3ee 72%, #a855f7 100%);
+  --grad-ribbon: linear-gradient(90deg, #ff5e7e, #fbbf24, #34d399, #22d3ee, #a855f7, #ff5e7e);
+  --surface-bg: rgba(16, 16, 28, .62);
+  --surface-img: linear-gradient(165deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .012));
+  --surface-2: rgba(10, 10, 18, .66);
+  --line: rgba(255, 255, 255, .12);
+  --border-glow: rgba(56, 189, 248, .62);
+  --spot: rgba(56, 189, 248, .22);
+  --ripple: rgba(168, 85, 247, .38);
+  --topbar-bg: rgba(9, 9, 15, .78);
+  --thead-bg: rgba(13, 13, 22, .96);
+  --radius: 20px;
+  --radius-sm: 12px;
+  --txt: #ffffff;
+  --dim: #cbd5e1;
+  --dim2: #7c8599;
+  --warn: #fbbf24;
+  --bad: #fb7185;
+  --blue: #22d3ee;
+  --cyan: #34d399;
+  --grad-flow: linear-gradient(90deg, #7dd3fc, #93c5fd, #a5b4fc, #c4b5fd, #d8b4fe, #f0abfc, #f9a8d4, #fda4af, #fecdd3, #e0f2fe, #7dd3fc);
+  --grad-flow-warn: linear-gradient(90deg, #c2740a, #fbbf24, #fde68a, #fbbf24, #c2740a);
+  --grad-flow-bad: linear-gradient(90deg, #b01a3c, #fb7185, #fecdd3, #fb7185, #b01a3c);
+  --flow-period: 260px;
+  --flow-duration: 14s;
+  --bg: #07070d;
+}
+
+/* ---------------- 基础与动态氛围背景 ---------------- */
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+html body {
+  background-color: var(--bg) !important;
+  background-image: none !important;
+  color: var(--txt);
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background-color: transparent;
+}
+
+body main.wrap {
+  position: relative;
+  z-index: 1;
+}
+
+.ambient-bg .orb {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform, opacity;
+  opacity: .85;
+}
+
+body[data-theme="hypercar"] .ambient-bg {
+  background-image: radial-gradient(rgba(255, 255, 255, .055) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+body[data-theme="hypercar"] .ambient-bg .orb-1 {
+  left: -14vw; top: -22vh; width: 62vw; height: 62vw; max-width: 880px; max-height: 880px;
+  background: radial-gradient(circle, rgba(255, 94, 26, .42), rgba(255, 94, 26, .12) 45%, transparent 68%);
+  filter: blur(72px);
+}
+body[data-theme="hypercar"] .ambient-bg .orb-2 {
+  right: -16vw; top: -18vh; width: 54vw; height: 54vw; max-width: 780px; max-height: 780px;
+  background: radial-gradient(circle, rgba(255, 179, 71, .34), rgba(255, 140, 40, .09) 46%, transparent 70%);
+  filter: blur(82px);
+}
+body[data-theme="hypercar"] .ambient-bg .orb-3 {
+  left: 32vw; bottom: -34vh; width: 70vw; height: 46vw; max-width: 1000px;
+  background: radial-gradient(ellipse, rgba(255, 59, 92, .18), transparent 66%);
+  filter: blur(92px);
+}
+
+body[data-theme="prism"] .ambient-bg .orb-1 {
+  left: -10vw; top: -14vh; width: 58vw; height: 58vw; max-width: 820px; max-height: 820px;
+  background: radial-gradient(circle, rgba(236, 72, 153, .40), rgba(236, 72, 153, .08) 48%, transparent 70%);
+  filter: blur(78px);
+  animation: hw-drift-a 16s ease-in-out infinite alternate;
+}
+body[data-theme="prism"] .ambient-bg .orb-2 {
+  right: -12vw; top: 6vh; width: 52vw; height: 52vw; max-width: 760px; max-height: 760px;
+  background: radial-gradient(circle, rgba(139, 92, 246, .42), rgba(139, 92, 246, .08) 48%, transparent 70%);
+  filter: blur(84px);
+  animation: hw-drift-b 20s ease-in-out infinite alternate;
+}
+body[data-theme="prism"] .ambient-bg .orb-3 {
+  left: 24vw; bottom: -26vh; width: 56vw; height: 44vw; max-width: 900px;
+  background: radial-gradient(ellipse, rgba(34, 211, 238, .28), transparent 68%);
+  filter: blur(88px);
+  animation: hw-drift-c 22s ease-in-out infinite alternate;
+}
+
+body[data-theme="gold"] .ambient-bg {
+  background-image: repeating-linear-gradient(135deg, rgba(229, 193, 123, .035) 0 1px, transparent 1px 10px);
+}
+body[data-theme="gold"] .ambient-bg .orb-1 {
+  left: -12vw; top: -20vh; width: 60vw; height: 60vw; max-width: 860px; max-height: 860px;
+  background: radial-gradient(circle, rgba(229, 193, 123, .30), rgba(184, 137, 58, .08) 46%, transparent 70%);
+  filter: blur(84px);
+}
+body[data-theme="gold"] .ambient-bg .orb-2 {
+  right: -14vw; top: 18vh; width: 48vw; height: 48vw; max-width: 700px; max-height: 700px;
+  background: radial-gradient(circle, rgba(246, 226, 179, .20), transparent 68%);
+  filter: blur(90px);
+}
+body[data-theme="gold"] .ambient-bg .orb-3 {
+  left: 40vw; bottom: -32vh; width: 66vw; height: 44vw; max-width: 980px;
+  background: radial-gradient(ellipse, rgba(45, 212, 191, .12), transparent 70%);
+  filter: blur(96px);
+}
+
+body[data-theme="rainbow"] .ambient-bg .orb-1 {
+  left: -12vw; top: -18vh; width: 60vw; height: 60vw; max-width: 860px; max-height: 860px;
+  background: radial-gradient(circle, rgba(255, 94, 126, .38), rgba(251, 191, 36, .16) 46%, transparent 70%);
+  filter: blur(78px);
+  animation: hw-drift-a 14s ease-in-out infinite alternate;
+}
+body[data-theme="rainbow"] .ambient-bg .orb-2 {
+  right: -14vw; top: -8vh; width: 56vw; height: 56vw; max-width: 800px; max-height: 800px;
+  background: radial-gradient(circle, rgba(34, 211, 238, .34), rgba(52, 211, 153, .14) 50%, transparent 72%);
+  filter: blur(84px);
+  animation: hw-drift-b 18s ease-in-out infinite alternate;
+}
+body[data-theme="rainbow"] .ambient-bg .orb-3 {
+  left: 26vw; bottom: -28vh; width: 58vw; height: 46vw; max-width: 920px;
+  background: radial-gradient(ellipse, rgba(168, 85, 247, .36), rgba(96, 165, 250, .14) 48%, transparent 72%);
+  filter: blur(92px);
+  animation: hw-drift-c 20s ease-in-out infinite alternate;
+}
+
+@keyframes hw-drift-a {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(6vw, 4vh, 0) scale(1.12); }
+}
+@keyframes hw-drift-b {
+  from { transform: translate3d(0, 0, 0) scale(1.04); }
+  to { transform: translate3d(-6vw, 6vh, 0) scale(.95); }
+}
+@keyframes hw-drift-c {
+  from { transform: translate3d(0, 0, 0) scale(.96); }
+  to { transform: translate3d(-4vw, -5vh, 0) scale(1.1); }
+}
+/* 流动驱动：background-size 设成一个周期，位移恰好一个周期 -> 首尾重合，永不跳帧。
+   之前用 220% 宽度 + 220% 位移，位移量不是周期的整数倍，所以每轮都会闪一下。 */
+@keyframes hw-flow-bg {
+  from { background-position: 0 0; }
+  to { background-position: var(--flow-period, 160px) 0; }
+}
+
+/* ---------------- 顶栏 + 凹槽导航底座 ---------------- */
+body .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(10px + env(safe-area-inset-top)) 18px 10px;
+  background: var(--topbar-bg) !important;
+  background-color: var(--topbar-bg) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(165%);
+  backdrop-filter: blur(22px) saturate(165%);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, .5);
+  flex-wrap: wrap;
+}
+body .topbar {
+  --flow-period: 480px;
+}
+body .topbar::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0; height: 2px;
+  pointer-events: none;
+  background-image: var(--grad-flow);
+  background-size: var(--flow-period, 480px) 100%;
+  background-repeat: repeat-x;
+  animation: hw-flow-bg 16s linear infinite;
+}
+body[data-theme="rainbow"] .topbar::after {
+  animation-duration: 7s;
+  box-shadow: 0 0 14px rgba(168, 85, 247, .55);
+}
+
+.brand {
+  margin-right: auto;
+  flex: none;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .015em;
+  color: #fff;
+}
+.brand .emblem-box {
+  --flow-period: 120px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background-image: var(--grad-flow);
+  background-size: var(--flow-period) 100%;
+  background-repeat: repeat-x;
+  display: grid;
+  place-items: center;
+  color: #09090b;
+  box-shadow: 0 0 20px -4px var(--border-glow);
+  flex: none;
+  animation: hw-flow-bg 6s linear infinite;
+}
+.brand .brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.brand .brand-text em {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--dim2);
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius-sm) + 3px);
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.tool-link {
+  position: relative;
+  overflow: hidden;
+  flex: none;
+  text-decoration: none;
+  color: var(--dim);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 13px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  white-space: nowrap;
+  line-height: 1.4;
+  transition: color .18s ease, background .18s ease, box-shadow .18s ease, transform .14s ease;
+}
+.tool-link:hover { color: #fff; background: rgba(255, 255, 255, .06); }
+.tool-link:active { transform: scale(.96); }
+.tool-link.active {
+  --flow-period: 160px;
+  color: #08080b;
+  background-image: var(--grad-flow);
+  background-size: var(--flow-period) 100%;
+  background-repeat: repeat-x;
+  animation: hw-flow-bg 9s linear infinite;
+  box-shadow: 0 4px 16px -4px var(--border-glow);
+}
+body[data-theme="rainbow"] .tool-link.active,
+body[data-theme="prism"] .tool-link.active,
+body[data-theme="hypercar"] .tool-link.active {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+}
+
+#moodBtn {
+  position: relative;
+  overflow: hidden;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 13px 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--txt);
+  border: 1px solid var(--border-glow);
+  background: rgba(255, 255, 255, .06);
+  white-space: nowrap;
+  box-shadow: 0 0 16px -6px var(--border-glow);
+  transition: background .18s ease, box-shadow .18s ease, transform .14s ease;
+}
+#moodBtn:hover {
+  background: rgba(255, 255, 255, .12);
+  box-shadow: 0 0 22px -4px var(--border-glow);
+}
+#moodBtn:active { transform: scale(.95); }
+#moodBtn .mood-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  --flow-period: 100px;
+  background-image: var(--grad-flow);
+  background-size: var(--flow-period) 100%;
+  background-repeat: repeat-x;
+  animation: hw-flow-bg 6s linear infinite;
+  box-shadow: 0 0 10px var(--p1);
+}
+
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--txt);
+  white-space: nowrap;
+  padding: 5px 12px 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .045);
+  border: 1px solid var(--line);
+}
+.live i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dim2);
+  flex: none;
+  position: relative;
+}
+.live span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live.ok i { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
+.live.ok i::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ok);
+  animation: hw-ping 2.1s cubic-bezier(0, 0, .2, 1) infinite;
+}
+.live.warn i { background: var(--warn); box-shadow: 0 0 9px var(--warn); }
+.live.bad i { background: var(--bad); box-shadow: 0 0 9px var(--bad); }
+@keyframes hw-ping {
+  0% { transform: scale(.8); opacity: .9; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+.liveline { display: none !important; }
+
+/* ---------------- 卡片 · 鼠标聚光灯 · 点击波纹 · 入场动效 ---------------- */
+body .card,
+body .panel,
+body .live-card,
+body .master-card,
+body .gauge-card {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--surface-bg) !important;
+  background-image: var(--surface-img, none);
+  -webkit-backdrop-filter: blur(22px) saturate(155%);
+  backdrop-filter: blur(22px) saturate(155%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .10), 0 18px 44px -18px rgba(0, 0, 0, .78);
+  transition: border-color .22s ease, box-shadow .22s ease, transform .22s ease;
+  animation: hw-enter .38s cubic-bezier(.22, 1, .36, 1) backwards;
+}
+@keyframes hw-enter {
+  from { opacity: 0; transform: translateY(10px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+body .card::before,
+body .panel::before,
+body .live-card::before,
+body .master-card::before,
+body .gauge-card::before,
+body .peer::before,
+body .link::before,
+body .app::before,
+body .stat::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .24s ease;
+  background: radial-gradient(300px circle at var(--mx, 50%) var(--my, 20%), var(--spot), transparent 70%);
+}
+body .card:hover::before,
+body .panel:hover::before,
+body .live-card:hover::before,
+body .master-card:hover::before,
+body .gauge-card:hover::before,
+body .peer:hover::before,
+body .link:hover::before,
+body .app:hover::before,
+body .stat:hover::before {
+  opacity: 1;
+}
+
+body .link,
+body .app,
+body .stat,
+body .peer {
+  position: relative;
+  overflow: hidden;
+}
+
+body .card:hover,
+body .panel:hover,
+body .live-card:hover,
+body .master-card:hover,
+body .gauge-card:hover {
+  border-color: var(--border-glow);
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 22px 48px -18px rgba(0, 0, 0, .82),
+    0 0 24px -8px var(--border-glow);
+}
+body .peer:hover,
+body .link:hover,
+body .app:hover {
+  border-color: var(--border-glow);
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px -7px var(--border-glow);
+}
+
+/* 点击涟漪（common-nav.js 动态注入 .hw-ripple） */
+.hw-ripple {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, var(--ripple) 0%, transparent 72%);
+  transform: scale(0);
+  animation: hw-ripple-anim .55s cubic-bezier(.22, 1, .36, 1) forwards;
+  z-index: 9;
+}
+@keyframes hw-ripple-anim {
+  0% { transform: scale(0); opacity: .9; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* 发光竖条面板标题 */
+body .panel h2,
+body .panel-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  letter-spacing: .04em;
+}
+body .panel h2::before,
+body .panel-head h2::before {
+  content: "";
+  width: 4px;
+  height: 14px;
+  border-radius: 4px;
+  flex: none;
+  /* 小色条：给一个更短的周期，让 14px 高的条也能看出颜色在走 */
+  --flow-period: 100px;
+  background-image: var(--grad-flow);
+  background-size: var(--flow-period) 100%;
+  background-repeat: repeat-x;
+  animation: hw-flow-bg 7s linear infinite;
+  box-shadow: 0 0 10px var(--p1);
+}
+body .panel h2::after {
+  display: none !important;
+}
+
+/* L3 内嵌凹槽 */
+body .devices,
+body .seg,
+body .range-switch,
+body .stat,
+body .peer {
+  background-color: var(--surface-2) !important;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  backdrop-filter: blur(10px) saturate(130%);
+}
+body .peer.local {
+  border-color: var(--border-glow);
+  background-image: linear-gradient(160deg, rgba(255, 255, 255, .06), transparent 70%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 0 20px -7px var(--border-glow);
+}
+
+/* 分段控制器 & 按钮 */
+.devices { display: flex; gap: 4px; padding: 4px; flex: none; }
+.dev,
+body .seg button,
+body .range-btn {
+  position: relative;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 13px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: color .16s ease, background .16s ease, box-shadow .16s ease, transform .12s ease;
+}
+.dev:hover,
+body .seg button:hover,
+body .range-btn:hover { color: #fff; }
+.dev:active,
+body .seg button:active,
+body .range-btn:active { transform: scale(.96); }
+.dev.active,
+body .seg button.active,
+body .range-btn.active {
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  background: rgba(255, 255, 255, .06);
+  box-shadow: inset 0 0 0 1px var(--border-glow), 0 0 16px -6px var(--border-glow);
+}
+/* 激活胶囊里也铺一层淡主题色流动，文字仍在上层，不影响阅读 */
+.dev.active::before,
+body .seg button.active::before,
+body .range-btn.active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--grad-flow);
+  background-size: var(--flow-period, 160px) 100%;
+  background-repeat: repeat-x;
+  animation: hw-flow-bg var(--flow-duration, 7s) linear infinite;
+  opacity: .32;
+  pointer-events: none;
+}
+body[data-theme="gold"] .dev.active,
+body[data-theme="gold"] .seg button.active,
+body[data-theme="gold"] .range-btn.active { color: #f6e2b3; }
+
+.dev-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--dim2); flex: none;
+}
+.dev-dot.ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.dev-dot.warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+.dev-dot.bad { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+
+.subbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.subbar .subbar-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.subbar-label { font-size: 11px; color: var(--dim2); flex: none; letter-spacing: .04em; }
+
+/* 工具箱按钮 */
+body .btn {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-glow);
+  --flow-period: 240px;
+  background-image: var(--grad-flow);
+  background-size: var(--flow-period) 100%;
+  background-repeat: repeat-x;
+  animation: hw-flow-bg 12s linear infinite;
+  color: #09090b;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 12px 26px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  min-width: 104px;
+  box-shadow: 0 8px 26px -10px var(--border-glow), inset 0 1px 0 rgba(255, 255, 255, .28);
+  transition: background-position .3s ease, box-shadow .22s ease, transform .12s ease, opacity .2s ease;
+}
+body[data-theme="rainbow"] .btn { color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+body .btn:hover {
+  box-shadow: 0 12px 32px -8px var(--border-glow);
+  transform: translateY(-1px);
+}
+body .btn:active { transform: scale(.97); }
+body .btn:disabled { opacity: .42; cursor: not-allowed; filter: saturate(.5); box-shadow: none; transform: none; }
+body .btn.danger {
+  border-color: rgba(251, 113, 133, .65);
+  background-image: linear-gradient(90deg, rgba(251, 113, 133, .34), rgba(251, 113, 133, .16) 60%, rgba(255, 94, 26, .22));
+  color: #ffe4e6;
+  box-shadow: 0 8px 26px -12px rgba(251, 113, 133, .85);
+}
+
+/* 进度条：7px 发光渐变 + 末端白珠 */
+body .bar {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .06);
+  overflow: visible;
+  position: relative;
+}
+body .bar i,
+body .callbar i,
+body .load-bar i,
+body .splitbar i {
+  /* 必须显式给块级与满高：部分页面的 .bar i{display:block} 被收窄到了
+     .core-thread 作用域，详情面板里的 <i> 会退回 inline，宽高算成 0 —— 条看起来「不动」。 */
+  display: block;
+  height: 100%;
+  position: relative;
+  background-image: var(--grad-flow);
+  background-size: var(--flow-period, 160px) 100%;
+  background-repeat: repeat-x;
+  animation: hw-flow-bg var(--flow-duration, 7s) linear infinite;
+  border-radius: inherit;
+  box-shadow: 0 0 12px -2px var(--border-glow);
+  transition: width .4s ease;
+}
+
+/* 越限条同样流动，但换成告警色系（红仍是红、黄仍是黄，只是会缓慢走色）。
+   页面里的 `.bar i.warn{background:var(--warn)!important}` 是简写，会把 size/repeat 一起重置，
+   所以这里必须把三个属性都重新声明并加 !important，且用 html body 提升特异性。 */
+html body .bar i.warn,
+html body .callbar i.warn,
+html body .load-bar i.warn,
+html body .splitbar i.warn,
+html body .bar i.bad,
+html body .callbar i.bad,
+html body .load-bar i.bad,
+html body .splitbar i.bad {
+  background-size: var(--flow-period, 160px) 100% !important;
+  background-repeat: repeat-x !important;
+}
+html body .bar i.warn,
+html body .callbar i.warn,
+html body .load-bar i.warn,
+html body .splitbar i.warn {
+  background-image: var(--grad-flow-warn) !important;
+}
+html body .bar i.bad,
+html body .callbar i.bad,
+html body .load-bar i.bad,
+html body .splitbar i.bad {
+  background-image: var(--grad-flow-bad) !important;
+}
+body .bar i::after,
+body .callbar i::after,
+body .load-bar i::after {
+  content: "";
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 8px #fff, 0 0 12px var(--p1);
+}
+body .bar.none { background: transparent; }
+body .bar.none i::after,
+body .bar i[style*="width:0"]::after,
+body .callbar i[style*="width:0"]::after,
+body .load-bar i[style*="width:0"]::after { display: none; }
+
+body thead th {
+  background: var(--thead-bg) !important;
+  background-color: var(--thead-bg) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+  border-bottom: 1px solid var(--line);
+}
+body tbody tr:hover td { background: rgba(255, 255, 255, .032); }
+
+body .chart-tip,
+body .tip {
+  background: var(--thead-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 14px 34px -12px rgba(0, 0, 0, .82);
+}
+
+body .node.on { border-color: var(--border-glow); color: var(--txt); box-shadow: 0 0 16px -8px var(--border-glow); }
+body .node.on i { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+body .link em, body .app em { color: var(--p1); transition: transform .2s ease; }
+body .link:hover em, body .app:hover em { transform: translateX(4px); }
+
+canvas,
+body .ring canvas,
+body .ring .val {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+@media (max-width: 640px) {
+  body .topbar { gap: 7px; padding: calc(8px + env(safe-area-inset-top)) 11px 8px; }
+  .brand { flex: 1 1 auto; margin-right: 0; font-size: 13.5px; }
+  .brand .brand-text em { display: none; }
+  .nav-links {
+    order: 3; flex: 1 1 240px; min-width: 0; gap: 4px;
+    overflow-x: auto; scrollbar-width: none;
+    /* 给右侧状态胶囊留固定空间，否则导航撑满整行会把胶囊挤到第三行 */
+    max-width: calc(100% - 104px);
+  }
+  .nav-links::-webkit-scrollbar { display: none; }
+  .tool-link { padding: 5px 10px; font-size: 11.5px; }
+  #moodBtn { order: 2; font-size: 11px; padding: 5px 10px 5px 8px; }
+  .live { order: 4; flex: 0 0 auto; font-size: 10.5px; padding: 4px 8px; }
+  .live span { max-width: 64px; }
+  .ambient-bg .orb { animation: none !important; filter: blur(48px) !important; }
+  body .card, body .panel, body .live-card, body .master-card, body .gauge-card {
+    -webkit-backdrop-filter: blur(10px) saturate(130%);
+    backdrop-filter: blur(10px) saturate(130%);
+  }
+}
+
+/* ---------------- Sol 双主题增量：旧四主题规则保持不变 ---------------- */
+body[data-theme="liquid-glass"] {
+  color-scheme: dark;
+  --bg: #07111f; --panel: rgba(16,32,52,.72); --panel2: rgba(8,20,36,.88);
+  --surface-bg: rgba(16,32,52,.72); --surface-2: rgba(8,20,36,.88);
+  --surface-img: linear-gradient(145deg,rgba(239,248,255,.10),rgba(152,181,215,.025) 50%,rgba(197,192,255,.055));
+  --p1: #9adfff; --p2: #c5c0ff; --p3: #e2f6ff; --blue: #9adfff; --cyan: #a9eee6;
+  --txt: #eff7ff; --dim: #b3c5d8; --dim2: #8ca3bb;
+  --line: rgba(207,232,255,.20); --border-glow: rgba(154,223,255,.55);
+  --spot: rgba(208,237,255,.12); --ripple: rgba(208,237,255,.20);
+  --topbar-bg: rgba(8,22,39,.82); --thead-bg: rgba(12,28,46,.97);
+  --radius: 22px; --radius-sm: 12px;
+  --grad-main: linear-gradient(100deg,#9adfff,#c5c0ff);
+  --grad-ribbon: linear-gradient(90deg,transparent,#9adfff,#c5c0ff,transparent);
+  --grad-flow: linear-gradient(90deg,#8cb9d8,#c9f0ff,#c5c0ff,#8cb9d8);
+  --flow-period: 240px; --flow-duration: 16s;
+  --fx-blur: 20px; --fx-saturate: 135%; --fx-surface-fallback: #13263c;
+}
+body[data-theme="forest-breath"] {
+  color-scheme: dark;
+  --bg: #07130f; --panel: rgba(12,32,25,.84); --panel2: rgba(7,22,16,.92);
+  --surface-bg: rgba(12,32,25,.84); --surface-2: rgba(7,22,16,.92);
+  --surface-img: linear-gradient(145deg,rgba(202,224,187,.06),rgba(116,168,140,.02));
+  --p1: #a5d6a7; --p2: #d6dea5; --p3: #81c9b5; --blue: #a5d6a7; --cyan: #81c9b5;
+  --txt: #eef6ec; --dim: #b4c8b8; --dim2: #91ad9c;
+  --line: rgba(190,219,189,.17); --border-glow: rgba(180,216,157,.44);
+  --spot: rgba(207,226,172,.09); --ripple: rgba(190,220,170,.16);
+  --topbar-bg: rgba(7,23,17,.90); --thead-bg: rgba(9,27,20,.98);
+  --radius: 20px; --radius-sm: 12px;
+  --grad-main: linear-gradient(100deg,#a5d6a7,#d6dea5);
+  --grad-ribbon: linear-gradient(90deg,transparent,#a5d6a7,#d6dea5,transparent);
+  --grad-flow: linear-gradient(90deg,#72a888,#b8d6a0,#d6dea5,#72a888);
+  --flow-period: 240px; --flow-duration: 20s;
+  --fx-blur: 12px; --fx-saturate: 110%; --fx-surface-fallback: #102a20;
+}
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) {
+  --ok: #75d8ab; --warn: #ffd080; --bad: #ff8e9e; --offline: #a6b3c2;
+  --grad-flow-warn: linear-gradient(90deg,#d8a553,#ffd080,#ffe3ac,#ffd080,#d8a553);
+  --grad-flow-bad: linear-gradient(90deg,#c66179,#ff8e9e,#ffc3ca,#ff8e9e,#c66179);
+}
+/* 只让装饰运动：容器和读数没有入场缩放，也不随悬停位移。 */
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.card,.panel,.live-card,.master-card,.gauge-card) {
+  animation: none;
+  transform: none;
+  -webkit-backdrop-filter: blur(var(--fx-blur)) saturate(var(--fx-saturate));
+  backdrop-filter: blur(var(--fx-blur)) saturate(var(--fx-saturate));
+  box-shadow: inset 0 1px 0 rgba(239,248,255,.15), inset 0 -1px 0 rgba(0,0,0,.24), 0 18px 44px -22px rgba(0,0,0,.70);
+  transition: border-color .22s ease, box-shadow .22s ease;
+}
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.link,.app,.stat):hover {
+  transform: none;
+}
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.devices,.seg,.range-switch,.stat,.peer,.link,.app) {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  background-color: var(--surface-2) !important;
+  border-color: var(--line);
+}
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .topbar {
+  -webkit-backdrop-filter: blur(var(--fx-blur)) saturate(var(--fx-saturate));
+  backdrop-filter: blur(var(--fx-blur)) saturate(var(--fx-saturate));
+  box-shadow: 0 8px 26px rgba(0,0,0,.26), inset 0 -1px 0 rgba(255,255,255,.035);
+}
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.emblem-box,.tool-link.active,.mood-dot,.btn),
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .topbar::after,
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.panel h2,.panel-head h2,.dev.active,.seg button.active,.range-btn.active)::before,
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .live.ok i::after {
+  animation: none;
+}
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.dev,.seg button,.range-btn).active::before { opacity: .12; }
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.tool-link.active,.btn:not(.danger)) {
+  color: #07131e; text-shadow: none;
+}
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.bar,.callbar,.load-bar,.splitbar) i {
+  animation: none;
+  box-shadow: none;
+}
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.bar,.callbar,.load-bar) i::after { display: none; }
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.master-ring,.gauge-val) .num {
+  color: var(--txt); background-image: none; -webkit-text-fill-color: currentColor;
+}
+/* ::before 仍由原聚光使用；仅已核实空闲的主卡 ::after 承载薄边，不遮文字。 */
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .master-card::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  pointer-events: none; border: 1px solid rgba(224,244,255,.24);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.20), inset 0 -1px 0 rgba(0,0,0,.30);
+  opacity: .42;
+}
+body[data-theme="liquid-glass"] .master-card::after {
+  border-color: transparent;
+  background: linear-gradient(110deg,transparent 12%,rgba(225,247,255,.75) 46%,rgba(197,192,255,.36) 53%,transparent 85%) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  padding: 1px;
+}
+body[data-theme="forest-breath"] .master-card::after { border-color: rgba(214,222,165,.30); }
+/* 三个既有节点：玻璃是宽流体曲面，森林是林隙、叶影和薄雾。 */
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .ambient-bg { isolation: isolate; }
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .ambient-bg .orb {
+  max-width: none; max-height: none; pointer-events: none;
+  animation: none !important; filter: none !important; will-change: auto;
+}
+body[data-theme="liquid-glass"] .ambient-bg .orb-1 {
+  left: -20vw; top: -25vh; width: 115vw; height: 82vh;
+  border-radius: 35% 65% 61% 39% / 56% 35% 65% 44%;
+  background: radial-gradient(ellipse at 52% 48%,transparent 32%,rgba(154,223,255,.15) 43%,rgba(207,242,255,.25) 47%,rgba(110,174,216,.08) 53%,transparent 66%);
+  opacity: .65; transform: rotate(-16deg);
+}
+body[data-theme="liquid-glass"] .ambient-bg .orb-2 {
+  right: -28vw; top: 22vh; width: 112vw; height: 95vh;
+  border-radius: 64% 36% 38% 62% / 41% 66% 34% 59%;
+  background: radial-gradient(ellipse,transparent 31%,rgba(197,192,255,.10) 40%,rgba(180,211,245,.17) 46%,transparent 63%);
+  opacity: .55; transform: rotate(18deg);
+}
+body[data-theme="liquid-glass"] .ambient-bg .orb-3 {
+  left: 2vw; bottom: -18vh; width: 94vw; height: 76vh;
+  background: radial-gradient(ellipse,rgba(102,168,203,.11),transparent 68%); opacity: .5;
+}
+body[data-theme="forest-breath"] .ambient-bg .orb-1 {
+  left: -18vw; top: -28vh; width: 120vw; height: 120vh; border-radius: 0;
+  background: radial-gradient(ellipse at 35% 10%,rgba(214,222,165,.23),transparent 40%), conic-gradient(from 155deg at 39% -15%,transparent 0deg,rgba(163,202,153,.13) 10deg,transparent 22deg,rgba(143,194,159,.11) 30deg,transparent 47deg);
+  opacity: .5; transform-origin: 35% 5%;
+}
+body[data-theme="forest-breath"] .ambient-bg .orb-2 {
+  right: -10vw; top: -7vh; width: 110vw; height: 110vh; border-radius: 0;
+  background: radial-gradient(ellipse 12% 30% at 12% 20%,rgba(2,13,9,.75) 44%,transparent 54%), radial-gradient(ellipse 16% 8% at 38% 15%,rgba(2,13,9,.65) 44%,transparent 56%), radial-gradient(ellipse 10% 23% at 78% 38%,rgba(2,13,9,.7) 44%,transparent 56%), radial-gradient(ellipse 17% 10% at 85% 68%,rgba(2,13,9,.6) 44%,transparent 56%);
+  opacity: .5;
+}
+body[data-theme="forest-breath"] .ambient-bg .orb-3 {
+  left: -15vw; bottom: -20vh; width: 125vw; height: 76vh;
+  background: radial-gradient(ellipse,rgba(167,199,174,.13),transparent 63%); opacity: .48;
+}
+@keyframes hw-sol-fluid {
+  0%,100% { transform: translate3d(0,0,0) rotate(-16deg); opacity: .55; }
+  50% { transform: translate3d(3vw,2vh,0) rotate(-12deg); opacity: .72; }
+}
+@keyframes hw-sol-fluid-back {
+  0%,100% { transform: translate3d(0,0,0) rotate(18deg); opacity: .45; }
+  50% { transform: translate3d(-3vw,-2vh,0) rotate(14deg); opacity: .60; }
+}
+@keyframes hw-sol-breath {
+  0%,83%,100% { opacity: .42; transform: scale(1); }
+  33%,42% { opacity: .60; transform: scale(1.025); }
+}
+@keyframes hw-sol-breath-edge { 0%,83%,100% { opacity: .42; } 33%,42% { opacity: .60; } }
+@keyframes hw-sol-fog { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(2vw,0,0); } }
+@keyframes hw-sol-sheen { 0%,35%,70%,100% { opacity: .22; } 49%,53% { opacity: .68; } }
+@keyframes hw-sol-lite-glass { 0%,100% { opacity: .32; } 50% { opacity: .44; } }
+@keyframes hw-sol-lite-forest { 0%,83%,100% { opacity: .42; } 33%,42% { opacity: .50; } }
+/* 显式 full 才启用，脚本异常时默认保持静态。important 覆盖旧移动端禁动画。 */
+body[data-theme="liquid-glass"][data-motion-effective="full"] .ambient-bg .orb-1 { animation: var(--hw-sol-motion,hw-sol-fluid 24s ease-in-out infinite) !important; }
+body[data-theme="liquid-glass"][data-motion-effective="full"] .ambient-bg .orb-2 { animation: var(--hw-sol-motion,hw-sol-fluid-back 24s ease-in-out infinite) !important; }
+body[data-theme="liquid-glass"][data-motion-effective="full"] .master-card::after,
+body[data-theme="liquid-glass"][data-motion-effective="full"] .topbar::after { animation: var(--hw-sol-motion,hw-sol-sheen 16s ease-in-out infinite); }
+body[data-theme="forest-breath"][data-motion-effective="full"] .ambient-bg :is(.orb-1,.orb-2) { animation: var(--hw-sol-motion,hw-sol-breath 12s ease-in-out infinite) !important; }
+body[data-theme="forest-breath"][data-motion-effective="full"] .ambient-bg .orb-3 { animation: var(--hw-sol-motion,hw-sol-fog 36s ease-in-out infinite) !important; }
+body[data-theme="forest-breath"][data-motion-effective="full"] .master-card::after,
+body[data-theme="forest-breath"][data-motion-effective="full"] .topbar::after { animation: var(--hw-sol-motion,hw-sol-breath-edge 12s ease-in-out infinite); }
+/* 告警与危险动作优先于主题和 hover。 */
+html body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.node).warn { border-color: var(--warn); }
+html body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.node).bad { border-color: var(--bad); }
+html body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.card,.panel,.live-card,.master-card,.gauge-card):is(.warn,.bad) { box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 14px 32px -22px rgba(0,0,0,.7); }
+html body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .master-card:is(.warn,.bad)::after { display: none; }
+html body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.v,.num,.state,.status-chip,.gauge-tag,.badge).warn { color: var(--warn); -webkit-text-fill-color: currentColor; }
+html body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.v,.num,.state,.status-chip,.gauge-tag,.badge).bad { color: var(--bad); -webkit-text-fill-color: currentColor; }
+html body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .gauge-card.warn .num { color: var(--warn); }
+html body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .gauge-card.bad .num { color: var(--bad); }
+html body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.offline,.unknown,.state.off) { --dim2: var(--offline); }
+html body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .btn.danger {
+  background: rgba(104,30,49,.74); color: #ffe4e9; border-color: var(--bad);
+  animation: none; box-shadow: inset 0 1px 0 rgba(255,200,209,.12);
+}
+html body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(button,a,input,select,summary,[tabindex]):focus-visible {
+  outline: 2px solid var(--p1); outline-offset: 3px;
+}
+/* 控件也可出现在原主题：仅新注入节点有样式，不改原组件。 */
+.hw-motion-control {
+  display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto;
+  color: var(--dim); font-size: 11px; white-space: nowrap;
+}
+.hw-motion-control #hwMotionSelect {
+  font: inherit; color: var(--txt); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 7px;
+  max-width: 85px; min-height: 30px; cursor: pointer; color-scheme: dark;
+}
+.hw-motion-control #hwMotionSelect:focus-visible { outline: 2px solid var(--p1); outline-offset: 3px; }
+@media (max-width: 640px) {
+  .hw-motion-control { order: 2; font-size: 10px; gap: 3px; }
+  .hw-motion-control #hwMotionSelect { max-width: 70px; padding: 4px; min-height: 28px; }
+  body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .brand { flex-basis: 110px; }
+  body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) #moodBtn { max-width: 170px; }
+  body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) #moodBtn .mood-text { overflow: hidden; text-overflow: ellipsis; }
+}
+/* 精简/关闭同时停掉旧伪元素与进度装饰，保留数据宽度更新。 */
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]):is([data-motion-effective="lite"],[data-motion-effective="off"]) {
+  --surface-bg: var(--fx-surface-fallback); --panel: var(--fx-surface-fallback);
+}
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]):is([data-motion-effective="lite"],[data-motion-effective="off"]) *,
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]):is([data-motion-effective="lite"],[data-motion-effective="off"]) *::before,
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]):is([data-motion-effective="lite"],[data-motion-effective="off"]) *::after {
+  animation: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]):is([data-motion-effective="lite"],[data-motion-effective="off"]) :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.link,.app,.stat)::before { opacity: 0 !important; transition: none; }
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]):is([data-motion-effective="lite"],[data-motion-effective="off"]) .hw-ripple { display: none; }
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"])[data-motion-effective="lite"] .ambient-bg :is(.orb-2,.orb-3) { display: none; }
+body[data-theme="liquid-glass"][data-motion-effective="lite"] .ambient-bg .orb-1 { animation: var(--hw-sol-motion,hw-sol-lite-glass 32s ease-in-out infinite) !important; }
+body[data-theme="forest-breath"][data-motion-effective="lite"] .ambient-bg .orb-1 { animation: var(--hw-sol-motion,hw-sol-lite-forest 16s ease-in-out infinite) !important; }
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"])[data-motion-effective="off"] :is(.bar,.callbar,.load-bar,.splitbar) i { transition: none; }
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"])[data-motion-effective="off"] :is(.btn,.tool-link,#moodBtn,.dev,.seg button,.range-btn,.link em,.app em) { transform: none; }
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"])[data-fx-paused="true"] *,
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"])[data-fx-paused="true"] *::before,
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"])[data-fx-paused="true"] *::after,
+body:is([data-theme="liquid-glass"],[data-theme="forest-breath"])[data-fx-paused="true"] .ambient-bg .orb { animation-play-state: paused !important; }
+@media (hover: none), (pointer: coarse) {
+  body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.link,.app,.stat)::before { opacity: 0 !important; }
+  body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .hw-ripple { display: none; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) { --surface-bg: var(--fx-surface-fallback); --panel: var(--fx-surface-fallback); }
+}
+@supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+  body[data-theme="liquid-glass"] .master-card::after { background: none; border-color: rgba(224,244,255,.30); padding: 0; }
+}
+/* THEME GALLERY V2 */
+.hw-theme-option[data-theme-choice="hypercar"]{--choice-rgb:255,102,48}
+.hw-theme-option[data-theme-choice="prism"]{--choice-rgb:199,111,231}
+.hw-theme-option[data-theme-choice="gold"]{--choice-rgb:220,186,114}
+.hw-theme-option[data-theme-choice="rainbow"]{--choice-rgb:109,223,214}
+.hw-theme-option[data-theme-choice="liquid-glass"]{--choice-rgb:173,222,251}
+.hw-theme-option[data-theme-choice="forest-breath"]{--choice-rgb:168,206,148}
+html body .hw-theme-option{background:linear-gradient(105deg,rgba(var(--choice-rgb),.09),rgba(var(--choice-rgb),.018) 82%);border-color:rgba(var(--choice-rgb),.16)}
+html body .hw-theme-option:hover,html body .hw-theme-option:focus-visible,html body .hw-theme-option[aria-selected="true"]{background:linear-gradient(105deg,rgba(var(--choice-rgb),.19),rgba(var(--choice-rgb),.04));border-color:rgba(var(--choice-rgb),.58)}
+html body .hw-theme-option:focus-visible{outline:2px solid rgba(var(--choice-rgb),.8);outline-offset:2px}
+html body .hw-theme-option strong,html body .hw-theme-option .hw-theme-check{color:rgb(var(--choice-rgb))}
+html body .hw-theme-picker{position:relative;flex:0 1 auto;min-width:0;z-index:80}
+html body #moodBtn.hw-gallery-trigger{display:flex;align-items:center;gap:9px;position:relative;padding:5px 11px 5px 6px;border:1px solid var(--line);border-radius:13px;background:var(--surface-2);box-shadow:inset 0 1px 0 #ffffff22,0 6px 18px #0003;color:var(--txt);max-width:244px;min-width:174px;overflow:visible;cursor:pointer;text-align:left;transform:none;animation:none}
+html body #moodBtn.hw-gallery-trigger:hover,html body #moodBtn.hw-gallery-trigger[aria-expanded="true"]{border-color:var(--p1);transform:none}
+.hw-trigger-copy{display:flex;flex-direction:column;gap:1px;min-width:0}.hw-trigger-copy small{font-size:9px;letter-spacing:.14em;color:var(--dim);font-weight:500}.hw-theme-current{font-size:11.5px;font-weight:650;white-space:nowrap}.hw-gallery-chevron{color:var(--p1);margin-left:auto;font-size:16px}
+.hw-theme-gallery[hidden]{display:none!important}.hw-theme-gallery{position:absolute;top:calc(100% + 12px);right:0;width:350px;max-width:calc(100vw - 24px);padding:14px;border:1px solid #cbe0f438;border-radius:22px;background:linear-gradient(145deg,#1c2b39fc,#0a131dfc);box-shadow:0 25px 75px #000a,inset 0 1px 0 #ffffff22;color:#edf5ff;max-height:min(640px,calc(100dvh - 100px));overflow-y:auto;overscroll-behavior:contain}
+.hw-gallery-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:3px 4px 12px}.hw-gallery-heading strong{font-size:14px;letter-spacing:.03em}.hw-gallery-heading span{font-size:9px;color:#a6bacd}#hwThemeMenu{display:grid;gap:7px}
+.hw-theme-option{display:flex;align-items:center;gap:12px;width:100%;padding:9px;border:1px solid #cfe5f814;border-radius:14px;cursor:pointer;text-align:left;background:#ffffff06;color:#edf5ff;font-family:inherit}.hw-theme-option:hover,.hw-theme-option:focus-visible{background:#c5e0f614;border-color:#cfe5f859;outline:2px solid transparent}.hw-theme-option[aria-selected="true"]{background:#b7d9f217;border-color:#cfe5f87a;box-shadow:inset 0 1px 0 #ffffff14}.hw-option-copy{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}.hw-option-copy strong{font-size:12px;font-weight:650}.hw-option-copy small{font-size:10px;color:#b3c5d7;font-weight:400}.hw-theme-check{opacity:0;font-size:14px;color:#d3f3ea}.hw-theme-option[aria-selected="true"] .hw-theme-check{opacity:1}.hw-gallery-footer{padding:13px 4px 1px;color:#91aabd;font-size:9.5px;text-align:center}
+.hw-theme-thumb{display:block;position:relative;flex:none;width:38px;height:34px;border-radius:9px;overflow:hidden;border:1px solid #f5faff38;box-shadow:inset 0 1px 0 #ffffff33;isolation:isolate}.hw-theme-option .hw-theme-thumb{width:78px;height:49px;border-radius:10px}.hw-theme-thumb::after{content:"";position:absolute;inset:0;background:linear-gradient(140deg,#ffffff22,transparent 45%);pointer-events:none}.hw-theme-thumb i,.hw-theme-thumb b{display:block;position:absolute;inset:-40%;pointer-events:none}
+.hw-theme-thumb[data-preview="hypercar"]{background:#160b08}.hw-theme-thumb[data-preview="hypercar"] i{background:conic-gradient(from 40deg,transparent 12%,#ff531c 22%,#ffbd6d 27%,#c3300b 32%,transparent 42%);transform:rotate(-20deg)}.hw-theme-thumb[data-preview="hypercar"] b{background:radial-gradient(ellipse at 60% 90%,#ff7518a6,transparent 50%)}
+.hw-theme-thumb[data-preview="prism"]{background:#140d2c}.hw-theme-thumb[data-preview="prism"] i{background:conic-gradient(from 30deg,transparent 10%,#e43ebcd9 25%,#8760f5a6 38%,transparent 55%,#4ee0efcc 72%,transparent 88%)}.hw-theme-thumb[data-preview="prism"] b{background:radial-gradient(ellipse,transparent 30%,#edc0ff66 44%,transparent 55%)}
+.hw-theme-thumb[data-preview="gold"]{background:repeating-linear-gradient(120deg,#100f0c 0 10px,#211d14 11px 12px)}.hw-theme-thumb[data-preview="gold"] i{background:linear-gradient(115deg,transparent 43%,#8e6f36 46%,#f7e3ae 49%,#8e6f36 51%,transparent 54%)}.hw-theme-thumb[data-preview="gold"] b{background:radial-gradient(ellipse at 50% 40%,#dbb56259,transparent 55%)}
+.hw-theme-thumb[data-preview="rainbow"]{background:#090e24}.hw-theme-thumb[data-preview="rainbow"] i{background:conic-gradient(from 95deg at 50% 70%,transparent 15%,#56e6abcc,#5bc6ffcc,#ab7effcc,#f292cdb3,transparent 65%);transform:rotate(-15deg)}.hw-theme-thumb[data-preview="rainbow"] b{background:repeating-linear-gradient(100deg,transparent 0 6px,#d1ecff1f 7px 8px)}
+.hw-theme-thumb[data-preview="liquid-glass"]{background:#10283b}.hw-theme-thumb[data-preview="liquid-glass"] i{border-radius:45%;background:radial-gradient(ellipse,transparent 26%,#d6f3ffb3 42%,#96b6ed26 48%,transparent 60%)}.hw-theme-thumb[data-preview="liquid-glass"] b{inset:10px 9px;border:1px solid #eaf9ff99;border-radius:7px;background:#d0eaff1a}
+.hw-theme-thumb[data-preview="forest-breath"]{background:#0a2016}.hw-theme-thumb[data-preview="forest-breath"] i{background:conic-gradient(from 140deg at 45% 0%,transparent,#d5e796b3 16deg,transparent 28deg,#97d29f80 40deg,transparent 65deg)}.hw-theme-thumb[data-preview="forest-breath"] b{background:radial-gradient(ellipse at 50% 90%,#a4d3ab73,transparent 60%)}
+@keyframes hw-gallery-flow{0%,100%{transform:translate(-5%,-3%) rotate(-12deg);opacity:.65}50%{transform:translate(6%,5%) rotate(12deg);opacity:1}}@keyframes hw-gallery-breathe{0%,100%{opacity:.35;transform:scale(1)}38%,48%{opacity:.95;transform:scale(1.08)}}
+html body[data-motion-effective="full"] .hw-theme-gallery:not([hidden]) .hw-theme-thumb i{animation:hw-gallery-flow 10s ease-in-out infinite}
+html body[data-motion-effective="full"] .hw-theme-gallery:not([hidden]) [data-preview="forest-breath"] i{animation:hw-gallery-breathe 7s ease-in-out infinite}
+html body[data-fx-paused="true"] .hw-theme-gallery .hw-theme-thumb i{animation-play-state:paused!important}.hw-motion-control{flex-wrap:wrap;max-width:165px}#hwMotionState{flex-basis:100%;font-size:9px;color:var(--dim);white-space:nowrap;line-height:1.2}
+@media(max-width:640px){html body .hw-theme-picker{order:2;margin-left:auto}html body #moodBtn.hw-gallery-trigger{min-width:0;max-width:190px;gap:6px;padding:4px 7px}.hw-trigger-copy small{display:none}.hw-theme-current{font-size:10.5px}.hw-gallery-trigger .hw-theme-thumb{width:27px;height:27px;border-radius:7px}.hw-theme-gallery{position:fixed;right:12px;top:76px;width:350px;max-height:calc(100dvh - 100px)}.hw-motion-control{max-width:105px}#hwMotionState{max-width:100px;overflow:hidden;text-overflow:ellipsis;font-size:8px}}
+@media(prefers-reduced-motion:reduce){html body .hw-theme-gallery .hw-theme-thumb i{animation:none!important}}
+/* 原生主题下拉：色点和材质边缘随当前主题变化，系统弹层保持键盘/触控支持。 */
+html body #moodBtn.hw-theme-control {
+  display: inline-flex; align-items: center; gap: 7px; position: relative;
+  padding: 5px 10px; max-width: 256px; min-width: 0; cursor: pointer;
+  background: linear-gradient(125deg,rgba(255,255,255,.075),transparent 65%),var(--surface-2);
+  border: 1px solid var(--border-glow); box-shadow: inset 0 1px 0 rgba(255,255,255,.15);
+  transform: none; overflow: hidden;
+}
+html body #moodBtn.hw-theme-control:focus-within { outline: 2px solid var(--p1); outline-offset: 3px; }
+.hw-theme-caption { color: var(--dim); font-size: 10px; letter-spacing: .05em; }
+#hwThemeSelect {
+  appearance: none; -webkit-appearance: none; min-width: 0; width: 172px; max-width: 100%;
+  border: 0; outline: 0; padding: 3px 13px 3px 0; margin: 0;
+  background: transparent; color: var(--txt); font: inherit; font-size: 11px; font-weight: 600;
+  cursor: pointer; color-scheme: dark; text-overflow: ellipsis;
+}
+#hwThemeSelect option { background: #14202c; color: #edf4ff; }
+.hw-theme-chevron { position: absolute; right: 9px; top: 50%; transform: translateY(-55%); pointer-events: none; color: var(--p1); }
+body[data-theme="forest-breath"] #moodBtn.hw-theme-control { border-radius: 18px 10px 18px 10px; }
+body[data-theme="liquid-glass"] #moodBtn.hw-theme-control { box-shadow: inset 0 1px 0 rgba(230,248,255,.35),inset 0 -1px 0 rgba(0,0,0,.25); }
+@media(max-width:640px) {
+  html body #moodBtn.hw-theme-control { max-width: 175px; padding: 4px 8px; gap: 5px; flex: 0 1 auto; }
+  #moodBtn.hw-theme-control .hw-theme-caption { display: none; }
+  #hwThemeSelect { width: 139px; font-size: 10.5px; }
+}
+/* 系统减少动态具有最终优先级，即使脚本尚未设置 effective 也立即静止。 */
+@media (prefers-reduced-motion: reduce) {
+  body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) {
+    --hw-sol-motion: none; --surface-bg: var(--fx-surface-fallback); --panel: var(--fx-surface-fallback);
+  }
+  body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) *,
+  body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) *::before,
+  body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) *::after {
+    animation: none !important; transition: none !important;
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  }
+  body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.link,.app,.stat)::before { opacity: 0 !important; }
+  body:is([data-theme="liquid-glass"],[data-theme="forest-breath"]) .hw-ripple { display: none; }
+}
+
+/* ==================== ATMOSPHERE V2 · 六主题背景与材质 ==================== */
+/* 渐变自带柔边；仅复用三个既有节点，不使用模糊滤镜或内容缩放。 */
+html body[data-theme] .ambient-bg { isolation: isolate; background: none; }
+html body[data-theme] .ambient-bg::before,
+html body[data-theme] .ambient-bg::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
+html body[data-theme] .ambient-bg::before { background: var(--atmo-texture,none); opacity: .4; }
+html body[data-theme] .ambient-bg::after { background: radial-gradient(ellipse at 50% 38%,transparent 20%,rgba(0,0,0,.19) 85%),linear-gradient(0deg,rgba(0,0,0,.24),transparent 45%); }
+html body[data-theme] .ambient-bg .orb {
+  display: block; max-width: none; max-height: none; border: 0; filter: none !important;
+  box-shadow: none; mix-blend-mode: normal; animation: none !important; will-change: auto; opacity: .74;
+  transform: translate3d(0,0,0) rotate(var(--atmo-angle,0deg)); transform-origin: center; background-repeat: no-repeat;
+}
+html body[data-theme="hypercar"] {
+  --surface-bg: rgba(17,14,16,.79); --surface-2: rgba(12,10,13,.86); --panel: rgba(17,14,16,.79);
+  --surface-img: linear-gradient(135deg,rgba(255,167,104,.07),transparent 43%,rgba(255,74,32,.025));
+  --atmo-solid: #171216; --atmo-edge: rgba(255,156,96,.17);
+  --atmo-texture: repeating-linear-gradient(125deg,rgba(255,171,128,.025) 0 1px,transparent 1px 18px);
+}
+html body[data-theme="hypercar"] .ambient-bg .orb-1 {
+  left: -30vw; top: -14vh; right: auto; bottom: auto; width: 150vw; height: 82vh; border-radius: 30%; --atmo-angle: -19deg;
+  background: radial-gradient(ellipse 54% 25% at 48% 50%,rgba(255,188,100,.46),rgba(255,91,26,.34) 36%,rgba(183,31,17,.14) 62%,transparent 82%);
+  --atmo-animation: hw-atmo-lava 25s ease-in-out infinite;
+}
+html body[data-theme="hypercar"] .ambient-bg .orb-2 {
+  left: auto; right: -36vw; top: 11vh; bottom: auto; width: 130vw; height: 100vh; border-radius: 42%; --atmo-angle: -31deg;
+  background: radial-gradient(ellipse 55% 10% at 46% 48%,rgba(255,196,112,.38),rgba(255,77,20,.27) 40%,transparent 84%);
+  --atmo-animation: hw-atmo-current 31s ease-in-out infinite;
+}
+html body[data-theme="hypercar"] .ambient-bg .orb-3 {
+  left: -12vw; bottom: -28vh; top: auto; right: auto; width: 110vw; height: 85vh; border-radius: 50%;
+  background: radial-gradient(ellipse,rgba(195,36,23,.29),rgba(255,79,26,.13) 38%,transparent 73%);
+  --atmo-animation: hw-atmo-fluid 29s ease-in-out infinite reverse;
+}
+html body[data-theme="prism"] {
+  --surface-bg: rgba(21,15,38,.77); --surface-2: rgba(12,9,25,.85); --panel: rgba(21,15,38,.77);
+  --surface-img: linear-gradient(135deg,rgba(243,161,227,.09),transparent 48%,rgba(116,235,247,.055));
+  --atmo-solid: #1b142d; --atmo-edge: rgba(231,181,255,.21);
+}
+html body[data-theme="prism"] .ambient-bg .orb-1 {
+  left: -32vw; top: -32vh; right: auto; bottom: auto; width: 120vw; height: 130vh; border-radius: 48% 52% 63% 37%; --atmo-angle: -24deg;
+  background: radial-gradient(ellipse at 40% 42%,rgba(230,70,171,.45),rgba(153,66,224,.24) 35%,transparent 66%);
+  --atmo-animation: hw-atmo-fluid 27s ease-in-out infinite;
+}
+html body[data-theme="prism"] .ambient-bg .orb-2 {
+  left: auto; right: -38vw; top: -5vh; bottom: auto; width: 125vw; height: 110vh; border-radius: 64% 36% 43% 57%; --atmo-angle: 22deg;
+  background: radial-gradient(ellipse at 54% 40%,rgba(115,83,240,.43),rgba(199,107,239,.2) 36%,transparent 68%);
+  --atmo-animation: hw-atmo-current 33s ease-in-out infinite;
+}
+html body[data-theme="prism"] .ambient-bg .orb-3 {
+  left: -5vw; bottom: -47vh; top: auto; right: auto; width: 128vw; height: 110vh; border-radius: 48%; --atmo-angle: -15deg;
+  background: radial-gradient(ellipse 53% 40% at 55% 44%,rgba(99,238,245,.38),rgba(67,156,217,.18) 38%,transparent 72%);
+  --atmo-animation: hw-atmo-fluid 36s ease-in-out infinite reverse;
+}
+html body[data-theme="gold"] {
+  --surface-bg: rgba(23,20,15,.86); --surface-2: rgba(14,13,10,.9); --panel: rgba(23,20,15,.86);
+  --surface-img: linear-gradient(125deg,rgba(247,224,169,.10),transparent 36%,rgba(167,122,50,.03));
+  --atmo-solid: #1b1811; --atmo-edge: rgba(247,224,169,.2);
+  --atmo-texture: repeating-linear-gradient(110deg,rgba(238,210,149,.035) 0 1px,transparent 1px 13px);
+}
+html body[data-theme="gold"] .ambient-bg .orb-1 {
+  left: -30vw; top: -32vh; right: auto; bottom: auto; width: 150vw; height: 130vh; border-radius: 50%; --atmo-angle: -28deg;
+  background: radial-gradient(ellipse 58% 18% at 50% 50%,transparent 55%,rgba(223,184,107,.1) 66%,rgba(253,227,168,.46) 68%,rgba(194,141,56,.14) 71%,transparent 78%);
+  --atmo-animation: hw-atmo-filament 34s ease-in-out infinite;
+}
+html body[data-theme="gold"] .ambient-bg .orb-2 {
+  left: auto; right: -40vw; top: 3vh; bottom: auto; width: 140vw; height: 105vh; border-radius: 50%; --atmo-angle: 24deg;
+  background: radial-gradient(ellipse 57% 26% at 50% 50%,transparent 55%,rgba(246,222,166,.32) 62%,rgba(195,143,61,.08) 65%,transparent 76%);
+  --atmo-animation: hw-atmo-filament 41s ease-in-out infinite reverse;
+}
+html body[data-theme="gold"] .ambient-bg .orb-3 {
+  left: -25vw; bottom: -35vh; top: auto; right: auto; width: 115vw; height: 105vh; border-radius: 50%;
+  background: radial-gradient(ellipse,rgba(199,152,66,.2),rgba(169,117,39,.08) 40%,transparent 70%);
+  --atmo-animation: hw-atmo-fluid 38s ease-in-out infinite;
+}
+html body[data-theme="rainbow"] {
+  --surface-bg: rgba(14,20,33,.8); --surface-2: rgba(9,12,24,.87); --panel: rgba(14,20,33,.8);
+  --surface-img: linear-gradient(130deg,rgba(125,242,218,.075),transparent 42%,rgba(197,132,249,.07));
+  --atmo-solid: #111b2b; --atmo-edge: rgba(143,231,232,.18);
+}
+html body[data-theme="rainbow"] .ambient-bg .orb-1 {
+  left: -27vw; top: -43vh; right: auto; bottom: auto; width: 105vw; height: 170vh; border-radius: 44%; --atmo-angle: -27deg;
+  background: radial-gradient(ellipse 19% 58% at 52% 42%,rgba(108,244,185,.41),rgba(28,200,189,.18) 45%,transparent 78%),radial-gradient(ellipse 11% 50% at 70% 42%,rgba(133,159,255,.26),transparent 76%);
+  --atmo-animation: hw-atmo-curtain 29s ease-in-out infinite;
+}
+html body[data-theme="rainbow"] .ambient-bg .orb-2 {
+  left: auto; right: -29vw; top: -29vh; bottom: auto; width: 112vw; height: 160vh; border-radius: 39%; --atmo-angle: 25deg;
+  background: radial-gradient(ellipse 24% 56% at 48% 42%,rgba(170,88,247,.36),rgba(237,98,180,.18) 43%,transparent 76%),radial-gradient(ellipse 9% 54% at 64% 45%,rgba(109,226,246,.32),transparent 78%);
+  --atmo-animation: hw-atmo-curtain 37s ease-in-out infinite reverse;
+}
+html body[data-theme="rainbow"] .ambient-bg .orb-3 {
+  left: -10vw; bottom: -56vh; top: auto; right: auto; width: 120vw; height: 125vh; border-radius: 50%; --atmo-angle: -18deg;
+  background: radial-gradient(ellipse,rgba(74,143,242,.27),rgba(185,113,227,.11) 43%,transparent 72%);
+  --atmo-animation: hw-atmo-fluid 35s ease-in-out infinite;
+}
+html body[data-theme="liquid-glass"] {
+  --surface-bg: rgba(20,35,54,.74); --surface-2: rgba(10,23,39,.87); --panel: rgba(20,35,54,.74);
+  --surface-img: linear-gradient(135deg,rgba(236,249,255,.16),rgba(157,192,216,.025) 34%,rgba(187,204,243,.075) 73%,rgba(239,249,255,.1));
+  --atmo-solid: #182c42; --atmo-edge: rgba(227,245,255,.27);
+}
+html body[data-theme="liquid-glass"] .ambient-bg .orb-1 {
+  left: -34vw; top: -29vh; right: auto; bottom: auto; width: 150vw; height: 122vh; border-radius: 38% 62% 65% 35%; --atmo-angle: -23deg;
+  background: radial-gradient(ellipse 54% 39% at 48% 48%,transparent 48%,rgba(114,169,211,.12) 57%,rgba(225,245,255,.47) 61%,rgba(165,216,246,.2) 65%,transparent 76%);
+  --atmo-animation: hw-atmo-fold 28s ease-in-out infinite;
+}
+html body[data-theme="liquid-glass"] .ambient-bg .orb-2 {
+  left: auto; right: -38vw; top: 4vh; bottom: auto; width: 142vw; height: 135vh; border-radius: 62% 38% 41% 59%; --atmo-angle: 27deg;
+  background: radial-gradient(ellipse 53% 40% at 50% 48%,transparent 46%,rgba(155,171,213,.14) 55%,rgba(213,224,255,.35) 60%,rgba(133,188,221,.12) 66%,transparent 76%);
+  --atmo-animation: hw-atmo-fold 36s ease-in-out infinite reverse;
+}
+html body[data-theme="liquid-glass"] .ambient-bg .orb-3 {
+  left: -21vw; bottom: -43vh; top: auto; right: auto; width: 136vw; height: 110vh; border-radius: 50%; --atmo-angle: -11deg;
+  background: radial-gradient(ellipse,rgba(144,199,224,.22),rgba(93,148,183,.1) 40%,transparent 73%);
+  --atmo-animation: hw-atmo-fluid 39s ease-in-out infinite;
+}
+html body[data-theme="forest-breath"] {
+  --surface-bg: rgba(12,32,25,.82); --surface-2: rgba(7,22,16,.9); --panel: rgba(12,32,25,.82);
+  --surface-img: linear-gradient(145deg,rgba(219,235,185,.09),transparent 40%,rgba(129,190,155,.035));
+  --atmo-solid: #102a20; --atmo-edge: rgba(212,232,177,.18);
+  --atmo-texture: radial-gradient(ellipse at 15% 0%,rgba(196,222,159,.08),transparent 50%);
+}
+html body[data-theme="forest-breath"] .ambient-bg .orb-1 {
+  left: -23vw; top: -32vh; right: auto; bottom: auto; width: 145vw; height: 145vh; border-radius: 0; transform-origin: 35% 5%;
+  background: radial-gradient(ellipse at 34% 15%,rgba(222,233,161,.38),transparent 43%),conic-gradient(from 151deg at 35% -12%,transparent 0deg,rgba(181,219,150,.29) 9deg,transparent 19deg,rgba(127,203,156,.19) 28deg,transparent 43deg);
+  --atmo-animation: hw-atmo-breath 12s ease-in-out infinite;
+}
+html body[data-theme="forest-breath"] .ambient-bg .orb-2 {
+  left: auto; right: -16vw; top: -16vh; bottom: auto; width: 128vw; height: 130vh; border-radius: 0;
+  background: radial-gradient(ellipse 12% 30% at 12% 20%,rgba(2,13,9,.8) 40%,transparent 60%),radial-gradient(ellipse 18% 9% at 39% 15%,rgba(2,13,9,.7) 38%,transparent 62%),radial-gradient(ellipse 11% 26% at 78% 38%,rgba(2,13,9,.75) 36%,transparent 61%),radial-gradient(ellipse 20% 11% at 83% 67%,rgba(2,13,9,.65) 40%,transparent 63%);
+  --atmo-animation: hw-atmo-canopy 12s ease-in-out infinite;
+}
+html body[data-theme="forest-breath"] .ambient-bg .orb-3 {
+  left: -28vw; bottom: -31vh; top: auto; right: auto; width: 150vw; height: 95vh; border-radius: 50%;
+  background: radial-gradient(ellipse 45% 32% at 36% 50%,rgba(180,211,187,.26),transparent 76%),radial-gradient(ellipse 35% 30% at 77% 61%,rgba(158,203,179,.19),transparent 78%);
+  --atmo-animation: hw-atmo-fog 36s ease-in-out infinite;
+}
+html body[data-theme] :is(.card,.panel,.live-card,.master-card,.gauge-card) {
+  animation: none !important; transform: none !important; background-image: var(--surface-img); border-color: var(--line);
+  -webkit-backdrop-filter: blur(16px) saturate(125%); backdrop-filter: blur(16px) saturate(125%);
+  box-shadow: inset 0 1px 0 var(--atmo-edge),inset 0 -1px 0 rgba(0,0,0,.25),0 20px 48px -25px rgba(0,0,0,.82);
+  transition: border-color .22s ease,box-shadow .22s ease;
+}
+html body[data-theme] :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.link,.app,.stat):hover { transform: none !important; }
+html body[data-theme] :is(.card,.panel,.live-card,.master-card,.gauge-card):hover { border-color: var(--border-glow); }
+html body[data-theme] :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.node).warn { border-color: var(--warn) !important; }
+html body[data-theme] :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.node).bad { border-color: var(--bad) !important; }
+html body[data-theme] .master-card:is(.warn,.bad)::after { display: none; }
+html body[data-theme] :is(.v,.num,.state,.status-chip,.gauge-tag,.badge).warn,
+html body[data-theme] .gauge-card.warn .num { color: var(--warn) !important; -webkit-text-fill-color: currentColor !important; background-image: none; }
+html body[data-theme] :is(.v,.num,.state,.status-chip,.gauge-tag,.badge).bad,
+html body[data-theme] .gauge-card.bad .num { color: var(--bad) !important; -webkit-text-fill-color: currentColor !important; background-image: none; }
+/* 闭合周期只改变合成层的 transform / opacity。 */
+@keyframes hw-atmo-lava { 0%,100% { transform: translate3d(-3vw,-2vh,0) rotate(-19deg); opacity: .72; } 50% { transform: translate3d(8vw,6vh,0) rotate(-12deg); opacity: .96; } }
+@keyframes hw-atmo-current { 0%,100% { transform: translate3d(0,-3vh,0) rotate(var(--atmo-angle)); opacity: .62; } 50% { transform: translate3d(-9vw,7vh,0) rotate(calc(var(--atmo-angle) + 8deg)); opacity: .9; } }
+@keyframes hw-atmo-fluid { 0%,100% { transform: translate3d(-3vw,0,0) rotate(var(--atmo-angle,0deg)); opacity: .68; } 50% { transform: translate3d(7vw,-7vh,0) rotate(calc(var(--atmo-angle,0deg) + 9deg)); opacity: .94; } }
+@keyframes hw-atmo-filament { 0%,100% { transform: translate3d(-4vw,-3vh,0) rotate(var(--atmo-angle)); opacity: .68; } 50% { transform: translate3d(7vw,5vh,0) rotate(calc(var(--atmo-angle) + 10deg)); opacity: .96; } }
+@keyframes hw-atmo-curtain { 0%,100% { transform: translate3d(-3vw,-3vh,0) skewX(-5deg) rotate(var(--atmo-angle)); opacity: .67; } 50% { transform: translate3d(8vw,4vh,0) skewX(5deg) rotate(calc(var(--atmo-angle) + 7deg)); opacity: .95; } }
+@keyframes hw-atmo-fold { 0%,100% { transform: translate3d(-3vw,-3vh,0) rotate(var(--atmo-angle)); opacity: .66; } 50% { transform: translate3d(7vw,6vh,0) rotate(calc(var(--atmo-angle) + 10deg)); opacity: .97; } }
+@keyframes hw-atmo-breath { 0%,83%,100% { opacity: .44; transform: translate3d(0,0,0) rotate(-2deg); } 33%,42% { opacity: .96; transform: translate3d(2vw,2vh,0) rotate(1deg); } }
+@keyframes hw-atmo-canopy { 0%,83%,100% { opacity: .8; transform: translate3d(0,0,0); } 33%,42% { opacity: .51; transform: translate3d(-2vw,1vh,0); } }
+@keyframes hw-atmo-fog { 0%,100% { transform: translate3d(-5vw,0,0); opacity: .48; } 50% { transform: translate3d(8vw,-3vh,0); opacity: .83; } }
+@keyframes hw-atmo-lite { 0%,100% { opacity: .59; } 50% { opacity: .69; } }
+html body[data-theme][data-motion-effective="full"] .ambient-bg .orb { animation: var(--hw-atmo-motion,var(--atmo-animation)) !important; will-change: transform,opacity; }
+/* lite 仅保留单层低幅透明度；off 与脚本缺席时背景均静态。 */
+html body[data-theme]:is([data-motion-effective="lite"],[data-motion-effective="off"]) { --surface-bg: var(--atmo-solid); --panel: var(--atmo-solid); }
+html body[data-theme]:is([data-motion-effective="lite"],[data-motion-effective="off"]) *,
+html body[data-theme]:is([data-motion-effective="lite"],[data-motion-effective="off"]) *::before,
+html body[data-theme]:is([data-motion-effective="lite"],[data-motion-effective="off"]) *::after { animation: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html body[data-theme][data-motion-effective="lite"] .ambient-bg :is(.orb-2,.orb-3) { display: none; }
+html body[data-theme][data-motion-effective="lite"] .ambient-bg .orb-1 { animation: var(--hw-atmo-motion,hw-atmo-lite 24s ease-in-out infinite) !important; filter: none !important; will-change: opacity; }
+html body[data-theme][data-motion-effective="off"] .ambient-bg .orb { animation: none !important; will-change: auto; }
+html body[data-theme]:is([data-motion-effective="lite"],[data-motion-effective="off"]) :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.link,.app,.stat)::before { opacity: 0 !important; transition: none; }
+html body[data-theme]:is([data-motion-effective="lite"],[data-motion-effective="off"]) .hw-ripple { display: none; }
+html body[data-theme][data-motion-effective="off"] :is(.bar,.callbar,.load-bar,.splitbar) i { transition: none; }
+/* 单独命中光层，覆盖历史 !important animation 简写的播放状态。 */
+html body[data-theme][data-fx-paused="true"] *,
+html body[data-theme][data-fx-paused="true"] *::before,
+html body[data-theme][data-fx-paused="true"] *::after,
+html body[data-theme][data-fx-paused="true"] .ambient-bg .orb { animation-play-state: paused !important; }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { html body[data-theme] { --surface-bg: var(--atmo-solid); --panel: var(--atmo-solid); } }
+/* 系统 reduce 始终高于 full/lite，并在脚本执行前生效。 */
+@media (prefers-reduced-motion: reduce) {
+  html body[data-theme][data-theme] { --hw-atmo-motion: none; --surface-bg: var(--atmo-solid); --panel: var(--atmo-solid); }
+  html body[data-theme][data-theme] *,
+  html body[data-theme][data-theme] *::before,
+  html body[data-theme][data-theme] *::after,
+  html body[data-theme][data-theme] .ambient-bg .orb { animation: none !important; transition: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; filter: none !important; will-change: auto; }
+  html body[data-theme][data-theme] :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.link,.app,.stat)::before { opacity: 0 !important; }
+  html body[data-theme][data-theme] .hw-ripple { display: none; }
+}
+
+/* ==================== MOBILE & STABILITY FIXES (2026-11-16) ==================== */
+/* 1. 移动端一大三小：第三张仪表卡跨满两列，内部改左右分栏，消除右下空格。 */
+@media(max-width:640px){
+  html body .gauges-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch}
+  html body .gauges-grid>.gauge-card{min-width:0}
+  html body .gauges-grid>.gauge-card:last-child{
+    grid-column:1/-1;display:grid;grid-template-columns:auto minmax(0,1fr);
+    grid-template-areas:"head head" "box sub";align-items:center;gap:2px 16px;
+    padding:14px 18px 14px 14px;
+  }
+  html body .gauges-grid>.gauge-card:last-child>.gauge-head{grid-area:head;justify-self:stretch;margin-bottom:2px}
+  html body .gauges-grid>.gauge-card:last-child>.gauge-box{grid-area:box;justify-self:center}
+  html body .gauges-grid>.gauge-card:last-child>.gauge-sub{grid-area:sub;text-align:left;justify-self:start;margin-top:0;max-width:100%}
+}
+/* 2/3. 状态小方框：三等分等宽，标签/数值/单位分段，数值定宽右对齐，位数变化不再推动布局。 */
+html body .mini-badges{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;width:100%}
+html body .mini-badge{
+  display:inline-flex;align-items:baseline;justify-content:center;gap:3px;
+  min-width:0;padding:5px 8px;white-space:nowrap;overflow:hidden;
+  font-variant-numeric:tabular-nums;line-height:1.3;
+}
+html body .mini-badge .mb-k{font-size:10px;color:var(--dim2);flex:none;font-weight:500}
+html body .mini-badge .mb-v{display:inline-block;font-size:11.5px;font-weight:700;min-width:3.6em;text-align:right;flex:none}
+html body .mini-badge .mb-u{font-size:9.5px;color:var(--dim2);flex:none;line-height:1.3;transform:translateY(-.02em)}
+@media(max-width:420px){
+  html body .mini-badges{gap:5px}
+  html body .mini-badge{padding:4px 6px;gap:2px}
+  html body .mini-badge .mb-k{font-size:9px}
+  html body .mini-badge .mb-v{font-size:10.5px;min-width:3.2em}
+  html body .mini-badge .mb-u{font-size:9px}
+}
+/* 4. 带单位的读数统一基线：单位不参与行高竞争，避免 ℃ 把数字视觉上顶。 */
+html body :is(.gauge-val,.master-ring .val){align-items:center;justify-content:center}
+html body :is(.gauge-val,.master-ring .val) .unit{display:block;line-height:1.15;letter-spacing:.01em}
+html body .gauge-val .num,html body .master-ring .num{display:block}
+/* 5. 移动端顶栏改不透明底并隔离合成层，修复滚动回顶后换肤框不可见但仍可点击的重绘丢层。 */
+@media(max-width:1020px){
+  html body .topbar{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:var(--topbar-bg)!important;will-change:auto}
+  html body .hw-theme-picker{isolation:isolate;transform:translateZ(0);backface-visibility:hidden}
+  html body #moodBtn.hw-gallery-trigger{isolation:isolate;transform:translateZ(0);backface-visibility:hidden;opacity:1;visibility:visible;color:var(--txt)}
+  html body #moodBtn.hw-gallery-trigger .hw-theme-thumb,html body #moodBtn.hw-gallery-trigger .hw-trigger-copy,html body #moodBtn.hw-gallery-trigger .hw-gallery-chevron{opacity:1;visibility:visible}
+}
+/* 6. 读数几何：数字+单位在环内精确居中；副标题行数变化不再顶动环形与数字。 */
+html body .gauge-val{padding-top:4px}
+html body .gauge-val .unit{margin-top:2px}
+html body .gauge-card{justify-content:flex-start}
+html body .gauge-card>.gauge-box{margin:2px auto 0;flex:0 0 auto}
+html body .gauge-card>.gauge-sub{margin-top:auto;padding-top:6px;flex:0 0 auto}
+@media(max-width:640px){
+  html body .gauges-grid>.gauge-card:last-child>.gauge-sub{margin-top:0;padding-top:0}
+}

@@ -84,12 +84,30 @@ Windows 双机硬件遥测面板：把 **LibreHardwareMonitor**（Web Server）�
 | 文件 | 作用 |
 |---|---|
 | `agent.py` | 采集、聚合、告警判定、SQLite、HTTP |
-| `ui.html` | 单文件前端（直连版） |
-| `tools.html` | 可选工具页 |
+| `common-nav.css` | 全站设计系统：六套主题 token、环境氛围层、顶栏、卡片、主题画廊 |
+| `common-nav.js` | 顶栏注入、六主题切换、动效档位、无刷新视图切换与生命周期回收 |
+| `ui.html` / `llm.html` / `app.html` / `tools.html` | 直连版四个页面（硬件 / 模型 / 应用 / 工具箱） |
 | `router-hub/router_hub.py` | 反代、统一入口、告警与日报 |
-| `router-hub/monitor.html` | hub 版前端 |
-| `router-hub/index.html` | hub 工具页 |
+| `router-hub/monitor.html` / `llm.html` / `app.html` / `index.html` | hub 版四个页面 |
+| `router-hub/common-nav.css` / `common-nav.js` | hub 版公共资源（与根目录内容一致） |
 | `router-hub/docker-compose.yml` / `run-on-router.sh` | 容器编排与启动 |
+
+## 主题与动效
+
+六套主题，保存在 `localStorage.hwmon_theme`，通过顶栏「外观画廊」直接选择；每行带该主题材质的动态缩略预览。
+
+| 键 | 名称 | 背景语汇 |
+|---|---|---|
+| `hypercar` | 超跑熔岩 | 黑曜石底 + 橙红熔岩光带缓慢推进 |
+| `prism` | 液态棱镜 | 紫粉与冰青流体交叠透色 |
+| `gold` | 黑金奢华 | 深黑底 + 香槟金丝游走 |
+| `rainbow` | 全息极光 | 多层极光帷幕横向舒展 |
+| `liquid-glass` | 澄光玻璃 | 冷银曲面流动、折边与透色 |
+| `forest-breath` | 森息林间 | 12 秒林光呼吸 + 36 秒薄雾漂移 |
+
+动效档位 `localStorage.hwmon_motion`：`full`（默认）/ `lite` / `off` / `auto`。系统 `prefers-reduced-motion: reduce` 始终优先，页面会显示当前实际生效状态。`lite` 关闭背景模糊与指针特效，仅保留单层低透明度变化；`off` 冻结全部装饰动画，不影响数据刷新。
+
+氛围层复用 `.ambient-bg` 内三个既有节点，只用 `transform` / `opacity` 动画，不含视频、WebGL、外部字体或 CDN。
 
 ## 不包含
 

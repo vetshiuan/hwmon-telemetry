@@ -4,98 +4,163 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="color-scheme" content="dark" />
-<meta name="theme-color" content="#0b0e14" />
+<meta name="darkreader-lock" />
+<meta name="theme-color" content="#08080b" />
 <title>硬件监控</title>
-<style>
+<link rel="stylesheet" href="/common-nav.css" />
+<style data-view-style="1">
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
-  color-scheme:dark;--bg:#0b0e14;--panel:#131822;--panel2:#0f141d;
-  --line:rgba(255,255,255,.075);--txt:#e8eef7;--dim:#94a0b2;--dim2:#667286;
-  --blue:#60a5fa;--cyan:#22d3ee;--ok:#34d399;--warn:#fbbf24;--bad:#fb7185;
+  color-scheme:dark;--bg:#08080b;--panel:#111117;--panel2:#0c0c10;
+  --line:rgba(255,255,255,.09);--txt:#f6f3ee;--dim:#a8a29e;--dim2:#6e6963;
+  --blue:#ff8a4c;--cyan:#ffb347;--ok:#34d399;--warn:#ffb347;--bad:#ff3b5c;
 }
 html,body{margin:0;padding:0;overflow-x:hidden;max-width:100%}
 body{
-  background:radial-gradient(1000px 500px at 10% -8%,rgba(59,130,246,.12),transparent 62%),var(--bg);
-  color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-  font-size:14px;line-height:1.45;min-height:100vh;padding-bottom:calc(24px + env(safe-area-inset-bottom));
+  background:var(--bg);color:var(--txt);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:14px;line-height:1.45;min-height:100vh;padding-bottom:calc(28px + env(safe-area-inset-bottom));
   -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";
 }
 button{font-family:inherit}
-.topbar{position:sticky;top:0;z-index:50;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:12px;background:rgba(11,14,20,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line);flex-wrap:wrap}
-.brand{font-size:15px;font-weight:650;letter-spacing:.02em;color:#fff;flex:none}.brand span{color:var(--dim2);font-weight:400;font-size:11px;margin-left:8px}
-.tool-link{flex:none;text-decoration:none;color:var(--dim);font-size:12.5px;padding:6px 11px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.045);white-space:nowrap}
-.tool-link:active{color:#bfdbfe;background:rgba(96,165,250,.16)}
-.devices{display:flex;gap:4px;background:rgba(255,255,255,.045);padding:3px;border-radius:10px;margin-left:auto}
-.dev{border:0;background:transparent;color:var(--dim);font-size:12.5px;padding:6px 12px;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap}
-.dev.active{background:rgba(96,165,250,.16);color:#bfdbfe;box-shadow:inset 0 0 0 1px rgba(96,165,250,.25)}
-.dev-dot{width:6px;height:6px;border-radius:50%;background:var(--dim2)}.dev-dot.ok{background:var(--ok)}.dev-dot.warn{background:var(--warn)}.dev-dot.bad{background:var(--bad)}
-.live{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dim);flex:none}.live i{width:7px;height:7px;border-radius:50%;background:var(--dim2)}.live.ok i{background:var(--ok);box-shadow:0 0 0 3px rgba(52,211,153,.12)}.live.warn i{background:var(--warn)}.live.bad i{background:var(--bad)}
-.wrap{max-width:1180px;margin:0 auto;padding:16px 14px 0}
-.health{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:start;padding:14px 16px;margin-bottom:14px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(100deg,rgba(52,211,153,.08),transparent 55%),var(--panel)}
-.health.warn{border-color:rgba(251,191,36,.35);background:linear-gradient(100deg,rgba(251,191,36,.1),transparent 65%),var(--panel)}
-.health.bad{border-color:rgba(251,113,133,.45);background:linear-gradient(100deg,rgba(251,113,133,.12),transparent 65%),var(--panel)}
-.health .health-title{font-size:15px;font-weight:650;white-space:nowrap}.health.warn .health-title{color:var(--warn)}.health.bad .health-title{color:var(--bad)}.health.ok .health-title{color:var(--ok)}
-.health .health-detail{color:#c6d0de;font-size:12.5px;min-width:0}.health .health-meta{grid-column:1/-1;color:var(--dim);font-size:11px}.health .alert-rule{color:var(--dim);margin-left:6px}
-/* 卡片数固定 6（笔记本）或 8（台式机）：窄屏统一 2 列可整除，末行不留空；
-   宽屏由 rebuildHero() 写 data-cols（6→3 列、8→4 列），同样两行填满。 */
-.hero{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
-@media(min-width:560px){.hero{gap:12px}}
-@media(min-width:900px){.hero{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}}
-@media(min-width:900px){.hero[data-cols="3"]{grid-template-columns:repeat(3,minmax(0,1fr))}}
-/* 只有 2 张卡时收窄并居中，避免两张卡各占近 500px 显得空 */
-@media(min-width:900px){.hero[data-cols="2"]{grid-template-columns:repeat(2,minmax(0,1fr));max-width:760px;margin-left:auto;margin-right:auto}}
-.card{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.025),transparent),var(--panel);border:1px solid var(--line);border-radius:15px;padding:14px 9px 11px;display:flex;flex-direction:column;align-items:center;min-width:0;overflow:hidden;transition:border-color .2s}
-.card.warn{border-color:rgba(251,191,36,.42)}.card.bad{border-color:rgba(251,113,133,.55)}.card.unknown{opacity:.68}
-/* canvas 与文字层都必须强制透明：Chrome 强制深色 / Dark Reader 会给这两层注入
-   rgb(24,26,27) 不透明背景，遮住圆环下半或盖掉中心数字（平板上表现为"半椭圆"）。
-   canvas 放上层，文字层透明垫底，两层都不遮挡对方。 */
-.ring{width:100px;height:100px;position:relative;flex:none}.ring canvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:2;background:transparent!important}
-.ring .val{position:absolute;inset:0;z-index:1;background:transparent!important;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;pointer-events:none}
-.num{font-size:clamp(19px,4.6vw,26px);font-weight:650;letter-spacing:-.02em;line-height:1.05;color:#fff}.unit{font-size:10px;color:var(--dim2);font-weight:500;letter-spacing:.04em}
-.card.warn .num{color:var(--warn)}.card.bad .num{color:var(--bad)}.card.unknown .num{color:var(--dim2)}
-.card .name{font-size:12px;color:#c3cbd8;margin-top:8px;font-weight:550;text-align:center}.card .meta{font-size:10.5px;color:var(--dim);margin-top:3px;text-align:center;min-height:28px;max-width:100%;line-height:1.35;white-space:normal}
-.card .state{font-size:10px;margin-top:5px;color:var(--dim2)}.card.warn .state{color:var(--warn)}.card.bad .state{color:var(--bad)}
-.metric-box{height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}.metric-box .num{font-size:clamp(24px,5vw,32px)}.metric-box .unit{font-size:11px}
-.panel-grid{display:block}.panel-grid .full{grid-column:1/-1}
-/* 同排两块详情面板等高：以前 align-items:start 让内容少的核显面板短一截。 */
-@media(min-width:820px){.panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}.panel-grid .panel{margin-bottom:0}}
-.panel{background:linear-gradient(180deg,rgba(255,255,255,.018),transparent),var(--panel);border:1px solid var(--line);border-radius:15px;padding:16px 16px 10px;margin-bottom:14px;min-width:0}
-.panel-head{margin-bottom:10px}.panel h2{font-size:12px;font-weight:650;color:#aeb9c9;margin:0;letter-spacing:.09em;display:flex;align-items:center;gap:8px}.panel h2::after{content:"";flex:1;height:1px;background:var(--line)}
-.panel-sub{font-size:11px;color:var(--dim);margin-top:5px;overflow-wrap:anywhere;line-height:1.5}.panel-sub:empty{display:none}
-.daily-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}.daily-top h2{margin-top:2px}.range-switch{display:flex;gap:4px;padding:3px;border-radius:9px;background:rgba(255,255,255,.04)}.range-btn{border:0;background:transparent;color:var(--dim);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer}.range-btn.active{background:rgba(96,165,250,.16);color:#bfdbfe}.stats-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.stat{padding:10px 11px;border:1px solid rgba(255,255,255,.05);border-radius:10px;background:rgba(255,255,255,.018);min-width:0}.stat-label{font-size:11px;color:var(--dim)}.stat-value{font-size:18px;font-weight:650;color:#fff;margin-top:3px}.stat-sub{font-size:10.5px;color:var(--dim2);margin-top:2px}.daily-events{font-size:11px;color:var(--dim);margin-top:10px;line-height:1.7}.daily-events b{color:#c3cbd8;font-weight:550}@media(min-width:700px){.stats-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
-.row{display:grid;grid-template-columns:minmax(82px,110px) 1fr minmax(72px,100px);align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)}.row:last-child{border-bottom:0}
-.row .k{font-size:12.5px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row.disk-row .k{white-space:normal;overflow-wrap:anywhere;line-height:1.35}.row .v{font-size:12.5px;text-align:right;color:var(--txt);font-weight:550}.row .v small{color:var(--dim2);font-weight:400;font-size:10.5px;margin-left:3px}.row .v.warn{color:var(--warn)}.row .v.bad{color:var(--bad)}
-.bar{height:4px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}.bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#3b82f6,#22d3ee);transition:width .4s}.bar i.warn{background:var(--warn)}.bar i.bad{background:var(--bad)}.bar.none{background:transparent}
-.empty-row{padding:16px 0;color:var(--dim2);font-size:12px;text-align:center}
-.chart-panel{padding:15px 14px 13px}.chart-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;flex-wrap:wrap}.chart-head .t{font-size:12.5px;color:#c3cbd8;font-weight:550}.chart-head .t em{font-style:normal;color:var(--dim2);font-size:11px;margin-left:6px}
-.legend{display:flex;gap:8px 14px;margin-left:auto;font-size:11px;color:var(--dim);flex-wrap:wrap}.legend span{display:flex;align-items:center;gap:5px}.legend i{width:8px;height:8px;border-radius:2px;display:block;flex:none}.legend b{color:var(--txt);font-weight:550}
-.chart-wrap{position:relative}.chart-wrap canvas{width:100%;height:178px;display:block;touch-action:pan-y}.chart-tip{position:absolute;display:none;pointer-events:none;z-index:5;min-width:140px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:rgba(15,20,29,.96);box-shadow:0 8px 25px rgba(0,0,0,.25);font-size:11px;color:var(--dim)}.chart-tip b{color:var(--txt);font-weight:550}.chart-tip .tip-time{margin-bottom:4px;color:var(--dim2)}
-.chart-range{font-size:10.5px;color:var(--dim2);margin-top:4px;min-height:15px}
-.foot{text-align:center;font-size:11px;color:var(--dim2);padding:14px 0 4px}.foot b{color:var(--dim);font-weight:500}
-@media(min-width:820px){.ring{width:120px;height:120px}.metric-box{height:120px}.card{padding:17px 12px 13px}.card .name{font-size:13px}}
-@media(max-width:600px){.topbar{padding-left:12px;padding-right:12px;gap:8px}.brand span{display:none}.devices{margin-left:auto}.dev{padding:6px 9px}.live{flex-basis:100%;justify-content:flex-end;margin-top:-3px}.health{grid-template-columns:1fr;gap:5px;padding:13px}.health .health-meta{grid-column:1}.row{grid-template-columns:minmax(78px,96px) 1fr minmax(68px,88px);gap:8px}.chart-head{display:block}.legend{margin-left:0;margin-top:8px}.chart-wrap canvas{height:168px}.panel{padding:14px 12px 9px}.alert-rule{display:block;margin:2px 0 0}}
-/* 小结切换：固定各块高度 + 复用 DOM，只改文本，避免行数变化引起重排 */
-#dailyMeta{min-height:3em}
-#dailyEvents{min-height:3em}
-#dailyStats{margin-top:14px}
-#dailyStats .stat{height:88px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:8px 6px;overflow:hidden}
-#dailyStats .stat-label,#dailyStats .stat-value,#dailyStats .stat-sub{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#dailyStats .stat-value{font-size:16px}
-#dailyStats .stat-sub{margin-top:4px}
+.wrap{max-width:1360px;margin:0 auto;padding:16px 14px 0}
 
-/* ---------------- 每核详情弹层 ----------------
-   与图表 tip 同一套配色，但独立成块，不改动任何既有组件样式。 */
-/* 只有「CPU 温度」卡可点开每核明细，避免与「CPU 核心最高」重复 */
-.card[data-k="cpuTemp"]{cursor:pointer}
-.card[data-k="cpuTemp"]:hover{border-color:rgba(96,165,250,.42)}
-.card[data-k="cpuTemp"]::after{content:"⋯";position:absolute;top:6px;right:10px;color:var(--dim2);font-size:15px;line-height:1}
-/* 电压迷你曲线：沿用 .row 栅格，中间列换成 canvas，统一置于各栏最下 */
-.row.volt-row{border-top:1px solid rgba(255,255,255,.06);margin-top:2px;padding-top:9px}
-.row .spark-wrap{position:relative;height:22px}
-.row canvas.spark{width:100%;height:22px;display:block}
+/* ---------------- 非对称主次 Hero 区（大主卡 + 3 个 270° 转速表） ---------------- */
+.hero-layout{
+  display:grid;
+  grid-template-columns:1.15fr 2fr;
+  gap:16px;
+  margin-bottom:16px;
+}
+@media(max-width:1020px){.hero-layout{grid-template-columns:1fr}}
+
+.master-card{
+  padding:22px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:16px;
+}
+.master-card.warn{border-color:rgba(251,191,36,.48)}
+.master-card.bad{border-color:rgba(251,113,133,.58)}
+.master-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.status-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:4px 12px;border-radius:999px;font-size:11.5px;font-weight:700;
+  background:rgba(52,211,153,.14);color:var(--ok);border:1px solid rgba(52,211,153,.35);
+}
+.master-card.warn .status-chip{background:rgba(251,191,36,.15);color:var(--warn);border-color:rgba(251,191,36,.42)}
+.master-card.bad .status-chip{background:rgba(251,113,133,.16);color:var(--bad);border-color:rgba(251,113,133,.48)}
+.hw-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;color:var(--dim2);letter-spacing:.06em}
+.master-center{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.master-ring{width:138px;height:138px;position:relative;flex:none}
+.master-ring canvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:2;background:transparent!important}
+.master-ring .val{position:absolute;inset:0;z-index:1;background:transparent!important;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.master-ring .num{
+  font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1;
+  background-image:linear-gradient(180deg,#fff 28%,var(--p2) 130%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.master-ring .unit{font-size:10.5px;color:var(--dim);margin-top:4px}
+.master-info{flex:1;min-width:180px}
+.master-info h2{margin:0 0 6px;font-size:18px;font-weight:750;color:#fff;letter-spacing:-.01em}
+.master-info h2::before,.master-info h2::after{display:none!important}
+.master-info p,.health-detail{margin:0 0 12px;font-size:12.5px;color:var(--dim);line-height:1.5}
+.alert-rule{color:var(--dim2);margin-left:6px;font-size:11px}
+.mini-badges{display:flex;gap:8px;flex-wrap:wrap}
+.mini-badge{
+  font-size:11px;padding:4px 10px;border-radius:var(--radius-sm);
+  background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--txt);
+}
+.master-foot{
+  padding-top:12px;border-top:1px solid rgba(255,255,255,.07);
+  display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--dim2);
+}
+
+.gauges-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+}
+@media(max-width:640px){.gauges-grid{grid-template-columns:1fr 1fr;gap:10px}}
+.gauge-card{
+  padding:18px 14px 16px;
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+}
+.gauge-card.warn{border-color:rgba(251,191,36,.45)}
+.gauge-card.bad{border-color:rgba(251,113,133,.55)}
+.gauge-card.unknown{opacity:.68}
+.gauge-head{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;
+  font-size:12px;font-weight:600;color:var(--dim);margin-bottom:6px;
+}
+.gauge-tag{font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.06);color:var(--dim);white-space:nowrap}
+.gauge-card.warn .gauge-tag{background:rgba(251,191,36,.16);color:var(--warn)}
+.gauge-card.bad .gauge-tag{background:rgba(251,113,133,.18);color:var(--bad)}
+.gauge-box{width:142px;height:114px;position:relative}
+.gauge-box canvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:2;background:transparent!important}
+.gauge-val{position:absolute;inset:0;z-index:1;background:transparent!important;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:10px;pointer-events:none}
+.gauge-val .num{
+  font-size:29px;font-weight:800;letter-spacing:-.025em;line-height:1;
+  background-image:linear-gradient(180deg,#fff 35%,var(--p2) 135%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.gauge-card.warn .gauge-val .num,.gauge-card.bad .gauge-val .num,.gauge-card.unknown .gauge-val .num{-webkit-text-fill-color:currentColor;background-image:none}
+.gauge-card.warn .gauge-val .num{color:var(--warn)}
+.gauge-card.bad .gauge-val .num{color:var(--bad)}
+.gauge-card.unknown .gauge-val .num{color:var(--dim2)}
+.gauge-val .unit{font-size:10.5px;color:var(--dim2);margin-top:3px}
+.gauge-sub{font-size:11px;color:var(--dim2);text-align:center;margin-top:4px;line-height:1.35}
+.gauge-card[data-k="cpuTemp"],.master-card[data-k="cpuTemp"]{cursor:pointer}
+.gauge-card[data-k="cpuTemp"]::after{content:"⋯";position:absolute;bottom:8px;right:12px;color:var(--dim2);font-size:15px;line-height:1}
+
+/* ---------------- 详情面板与曲线 ---------------- */
+.panel-grid{display:block}.panel-grid .full{grid-column:1/-1}
+@media(min-width:820px){.panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch}.panel-grid .panel{margin-bottom:0}}
+.panel{padding:18px 20px 14px;margin-bottom:16px;min-width:0}
+.panel-head{margin-bottom:12px}
+.panel h2{font-size:14px;font-weight:700;color:#fff;margin:0;letter-spacing:.03em}
+.panel-sub{font-size:11px;color:var(--dim);margin-top:5px;overflow-wrap:anywhere;line-height:1.5}.panel-sub:empty{display:none}
+
+.daily-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.stats-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+@media(min-width:700px){.stats-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.stat{padding:10px 11px;height:88px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;overflow:hidden;min-width:0}
+.stat-label,.stat-value,.stat-sub{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat-label{font-size:11px;color:var(--dim)}
+.stat-value{font-size:16.5px;font-weight:700;color:#fff;margin-top:4px}
+.stat-sub{font-size:10.5px;color:var(--dim2);margin-top:4px}
+.daily-events{font-size:11px;color:var(--dim);margin-top:12px;line-height:1.7;min-height:3em}
+.daily-events b{color:#e2e8f0;font-weight:600}
+#dailyMeta{min-height:2.2em}
+
+.row{display:grid;grid-template-columns:minmax(84px,112px) 1fr minmax(72px,100px);align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.05)}.row:last-child{border-bottom:0}
+.row .k{font-size:12.5px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row.disk-row .k{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+.row .v{font-size:13px;text-align:right;color:#fff;font-weight:650}.row .v small{color:var(--dim2);font-weight:400;font-size:10.5px;margin-left:3px}.row .v.warn{color:var(--warn)}.row .v.bad{color:var(--bad)}
+.bar i.warn{background-image:none!important;background:var(--warn)}.bar i.bad{background-image:none!important;background:var(--bad)}
+.empty-row{padding:16px 0;color:var(--dim2);font-size:12px;text-align:center}
+
+.chart-panel{padding:18px 18px 14px}
+.chart-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.chart-head .t{font-size:13.5px;color:#fff;font-weight:700;display:flex;align-items:center;gap:8px}
+.chart-head .t::before{content:"";width:4px;height:14px;border-radius:4px;background-image:var(--grad-main);box-shadow:0 0 10px var(--p1)}
+.chart-head .t em{font-style:normal;color:var(--dim2);font-size:11px;font-weight:400}
+.legend{display:flex;gap:8px 14px;margin-left:auto;font-size:11px;color:var(--dim);flex-wrap:wrap}
+.legend span{display:flex;align-items:center;gap:5px}.legend i{width:8px;height:8px;border-radius:2px;display:block;flex:none}.legend b{color:#fff;font-weight:600}
+.chart-wrap{position:relative}.chart-wrap canvas{width:100%;height:190px;display:block;touch-action:pan-y}
+.chart-tip{position:absolute;display:none;pointer-events:none;z-index:5;min-width:140px;padding:8px 10px;font-size:11px;color:var(--dim)}
+.chart-tip b{color:#fff;font-weight:600}.chart-tip .tip-time{margin-bottom:4px;color:var(--dim2)}
+.chart-range{font-size:10.5px;color:var(--dim2);margin-top:6px;min-height:15px}
+.foot{text-align:center;font-size:11px;color:var(--dim2);padding:16px 0 4px}.foot b{color:var(--dim);font-weight:500}
+
+.row.volt-row{border-top:1px solid rgba(255,255,255,.06);margin-top:2px;padding-top:10px}
+.row .spark-wrap{position:relative;height:24px}.row canvas.spark{width:100%;height:24px;display:block}
+
+/* 每核详情弹层 */
 .core-pop{position:fixed;z-index:80;width:min(430px,calc(100vw - 20px));max-height:min(72vh,600px);display:flex;flex-direction:column;
-  border:1px solid rgba(96,165,250,.28);border-radius:13px;background:rgba(15,20,29,.98);
-  box-shadow:0 18px 48px rgba(0,0,0,.55);font-size:11.5px;color:var(--dim)}
+  border:1px solid var(--border-glow);border-radius:var(--radius);background:var(--thead-bg);
+  -webkit-backdrop-filter:blur(18px) saturate(150%);backdrop-filter:blur(18px) saturate(150%);
+  box-shadow:0 22px 56px rgba(0,0,0,.62),0 0 26px -12px var(--border-glow);font-size:11.5px;color:var(--dim)}
 .core-pop[hidden]{display:none}
 .core-pop-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:11px 12px 9px;border-bottom:1px solid var(--line);flex:none}
 .core-pop-head b{color:var(--txt);font-size:12.5px;font-weight:650}
@@ -110,46 +175,77 @@ button{font-family:inherit}
 .core-tr>span{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .core-tr>span:first-child{text-align:left;color:#c3cbd8}
 .core-tr.core-th{color:var(--dim2);font-size:10px;cursor:default;background:rgba(255,255,255,.03)}
-.core-tr:not(.core-th):hover{background:rgba(96,165,250,.1)}
-.core-tr.selected{background:rgba(96,165,250,.16);outline:1px solid rgba(96,165,250,.3)}
-/* 「最热核心」只是排名，不是告警：蓝色系 + 文字标记，避免误读成黄色越限 */
-.core-tr.hottest>span:first-child{color:var(--blue);font-weight:600}
+.core-tr:not(.core-th):hover{background:var(--spot)}
+.core-tr.selected{background:var(--spot);outline:1px solid var(--border-glow)}
+.core-tr.hottest>span:first-child,.core-tr.hottest .v{color:var(--p2);font-weight:600}
 .core-tr .v{color:var(--txt);font-variant-numeric:tabular-nums}
-.core-tr.hottest .v{color:#bfdbfe}
-.core-threads{margin:4px 0 2px}
-.core-threads summary{cursor:pointer;font-size:10.5px;color:var(--dim2);padding:5px 0}
+.core-threads{margin:4px 0 2px}.core-threads summary{cursor:pointer;font-size:10.5px;color:var(--dim2);padding:5px 0}
 .core-thread-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 12px;padding:4px 0}
 .core-thread{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--dim)}
 .core-thread .k{width:66px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.core-thread .bar{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden}
-.core-thread .bar i{display:block;height:100%;background:var(--blue)}
+.core-thread .bar{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden}
+.core-thread .bar i{display:block;height:100%;background-image:var(--grad-main)}
 .core-thread .v{width:34px;text-align:right;color:var(--txt)}
 .core-pop-chart{flex:none;padding:8px 12px 11px;border-top:1px solid var(--line)}
 .core-pop-chart-head{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;color:var(--dim2);margin-bottom:5px}
 .core-pop-chart canvas{width:100%;height:84px;display:block}
 .core-empty{padding:22px 8px;text-align:center;color:var(--dim2);font-size:11.5px;line-height:1.7}
-@media(max-width:480px){.core-pop{max-height:78vh}.core-table{min-width:340px}}
+@media(max-width:600px){.row{grid-template-columns:minmax(78px,96px) 1fr minmax(68px,88px);gap:8px}.chart-head{display:block}.legend{margin-left:0;margin-top:8px}.chart-wrap canvas{height:170px}.panel{padding:15px 13px 10px}}
 </style>
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">硬件监控<span>HW Monitor</span></div>
-  <div class="devices">
-    <button class="dev active" data-d="desktop"><i class="dev-dot" id="dot-desktop"></i>台式机</button>
-    <button class="dev" data-d="laptop"><i class="dev-dot" id="dot-laptop"></i>笔记本</button>
-  </div>
-  <a class="tool-link" href="http://127.0.0.1:8089/tools">工具</a>
-  <div class="live" id="live"><i></i><span id="liveTxt">正在连接</span></div>
-</header>
+<header class="topbar" data-title="硬件监控" data-subtitle="Hardware Telemetry"></header>
+<script src="/common-nav.js"></script>
 <main class="wrap">
-  <section class="health" id="health">
-    <div class="health-title" id="healthTitle">正在读取</div>
-    <div class="health-detail" id="healthDetail">等待设备返回实时快照</div>
-    <div class="health-meta" id="healthMeta">采样间隔 2 秒</div>
+  <div class="subbar">
+    <div class="subbar-group">
+      <span class="subbar-label">设备</span>
+      <div class="devices" id="devices">
+        <button class="dev active" data-d="desktop"><i class="dev-dot" id="dot-desktop"></i>台式机</button>
+        <button class="dev" data-d="laptop"><i class="dev-dot" id="dot-laptop"></i>笔记本</button>
+      </div>
+    </div>
+    <div class="subbar-group">
+      <span class="subbar-label">时间范围</span>
+      <div class="range-switch" aria-label="时间范围">
+        <button class="range-btn active" data-range="5m">5 分钟</button>
+        <button class="range-btn" data-range="1h">1 小时</button>
+        <button class="range-btn" data-range="today">今日</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 非对称 Hero：左大主卡（整合健康状态+主仪表） + 右侧 270° 转速表 -->
+  <section class="hero-layout">
+    <article class="master-card health" id="health">
+      <div class="master-top">
+        <span class="status-chip" id="healthTitle">正在读取</span>
+        <span class="hw-code" id="hwCode">VET-PC // 8090</span>
+      </div>
+      <div class="master-center">
+        <div class="master-ring">
+          <canvas id="masterCanvas"></canvas>
+          <div class="val">
+            <span class="num" id="masterNum">--</span>
+            <span class="unit" id="masterUnit">°C</span>
+          </div>
+        </div>
+        <div class="master-info">
+          <h2 id="masterTitle">等待设备响应</h2>
+          <div class="health-detail" id="healthDetail">等待设备返回实时快照</div>
+          <div class="mini-badges" id="masterBadges"></div>
+        </div>
+      </div>
+      <div class="master-foot">
+        <span id="healthMeta">采样间隔 2 秒</span>
+        <span id="sourceFoot">等待数据源状态</span>
+      </div>
+    </article>
+
+    <div class="gauges-grid" id="hero"></div>
   </section>
-  <section class="hero" id="hero"></section>
+
   <div class="panel-grid">
-    <!-- 两台设备统一顺序：先处理器、后显卡 -->
     <section class="panel">
       <div class="panel-head"><h2>处理器</h2><div class="panel-sub" id="cpuModel"></div></div>
       <div id="cpuRows"></div>
@@ -165,11 +261,6 @@ button{font-family:inherit}
     <section class="panel full" id="dailyPanel">
       <div class="daily-top">
         <div><h2 id="summaryTitle">5 分钟小结</h2><div class="panel-sub" id="dailyMeta">等待采样统计</div></div>
-        <div class="range-switch" aria-label="时间范围">
-          <button class="range-btn active" data-range="5m">5 分钟</button>
-          <button class="range-btn" data-range="1h">1 小时</button>
-          <button class="range-btn" data-range="today">今日</button>
-        </div>
       </div>
       <div class="stats-grid" id="dailyStats"></div>
       <div class="daily-events" id="dailyEvents"></div>
@@ -185,10 +276,9 @@ button{font-family:inherit}
       <div class="chart-range" id="powerRange"></div>
     </section>
   </div>
-  <div class="foot">采样间隔 <b>2s</b> · <span id="sourceFoot">等待数据源状态</span> · EasyTier 直连</div>
+  <div class="foot">采样间隔 <b>2s</b> · EasyTier 直连</div>
 </main>
 
-<!-- 每核详情弹层：DOM 常驻，由 CoreInspector 填充；每次 tick 只改数值，不重建结构 -->
 <div class="core-pop" id="corePop" hidden role="dialog" aria-label="处理器核心明细">
   <div class="core-pop-head">
     <div><b>处理器核心明细</b><span class="sub" id="corePopSub">点击核心行查看温度曲线</span></div>
@@ -202,34 +292,27 @@ button{font-family:inherit}
 </div>
 <script>
 const PEERS=[
-  {key:'desktop',label:'台式机',device:'',base:'http://desktop.local:8090'},
-  {key:'laptop',label:'笔记本',device:'',base:'http://laptop.local:8090'}
+  {key:'desktop',label:'台式机',device:'DESKTOP-01',base:'http://192.0.2.12:8090'},
+  {key:'laptop',label:'笔记本',device:'LAPTOP-01',base:'http://192.0.2.11:8090'}
 ];
 let cur=new URLSearchParams(location.search).get('dev')==='laptop'?'laptop':'desktop';
-let layoutSig='',activeCards=[],tickSeq=0,badgeSeq=0,dailySeq=0,chartSeq=0,chartRange='5m',lastSnapshot={};
-const RANGE_TITLE={'5m':'5 分钟小结','1h':'1 小时小结','today':'今日小结'};
-const RANGE_LABEL={'5m':'近 5 分钟','1h':'近 1 小时','today':'今日'};
+let layoutSig='',activeCards=[],tickSeq=0,badgeSeq=0,dailySeq=0,chartSeq=0,chartRange='5m',lastSnapshot={},offlineOnce=true;
+const RANGE_TITLE={'5m':'5 分钟小结','1h':'1 小时小结','today':'今日小结','7d':'7 天概览','30d':'30 天概览'};
+const RANGE_LABEL={'5m':'近 5 分钟','1h':'近 1 小时','today':'今日','7d':'近 7 天','30d':'近 30 天'};
+const LONG_RANGE={'7d':7,'30d':30};
+const isLongRange=()=>false;
 const HERO_POOL=[
   {k:'gpuCore',t:'GPU 核心',u:'°C',max:100,metric:'gpu.core'},
   {k:'gpuHot',t:'GPU 热点',u:'°C',max:115,metric:'gpu.hot'},
-  {k:'gpuMem',t:'显存结温',u:'°C',max:110,metric:'gpu.mem'},
-  {k:'pin12v',t:'16pin 电压',u:'V',metric:'gpu.pin_volt',kind:'metric',dp:2},
   {k:'cpuTemp',t:'CPU 温度',u:'°C',max:105,metric:'cpu.temp'},
   {k:'cpuCoreMax',t:'CPU 核心最高',u:'°C',max:105,metric:'cpu.core_max'},
-  {k:'gpuPower',t:'GPU 功耗',u:'W',max:575,neutral:true},
-  {k:'cpuPower',t:'CPU 功耗',u:'W',max:219,neutral:true},
-  {k:'cpuVolt',t:'CPU 电压',u:'V',max:1.5,neutral:true,dp:3},
   {k:'cpuLoad',t:'CPU 占用',u:'%',max:100,neutral:true,dp:0},
-  {k:'memPct',t:'内存占用',u:'%',max:100,metric:'mem.pct',dp:0},
-  {k:'diskMax',t:'磁盘最高占用',u:'%',max:100,neutral:true,dp:0},
-  {k:'gpuClock',t:'核显频率',u:'MHz',max:1600,neutral:true,dp:0}
+  {k:'memPct',t:'内存占用',u:'%',max:100,metric:'mem.pct',dp:0}
 ];
 const GET={
-  gpuCore:s=>s.gpu?.core,gpuHot:s=>s.gpu?.hot,gpuMem:s=>s.gpu?.mem,pin12v:s=>s.gpu?.pin_volt,
-  cpuTemp:s=>s.cpu?.temp,cpuCoreMax:s=>s.cpu?.core_max,gpuPower:s=>s.gpu?.power,cpuPower:s=>s.cpu?.power,
-  cpuVolt:s=>s.cpu?.volt,cpuLoad:s=>s.cpu?.load,memPct:s=>s.mem?.pct,
-  diskMax:s=>s.disk?.length?Math.max(...s.disk.map(d=>d.used_pct).filter(Number.isFinite)):null,
-  gpuClock:s=>s.gpu?.clock
+  gpuCore:s=>s.gpu?.core,gpuHot:s=>s.gpu?.hot,
+  cpuTemp:s=>s.cpu?.temp,cpuCoreMax:s=>s.cpu?.core_max,
+  cpuLoad:s=>s.cpu?.load,memPct:s=>s.mem?.pct
 };
 const fmt=(v,dp=1)=>Number.isFinite(v)?v.toFixed(dp):'--';
 const peerNow=()=>PEERS.find(p=>p.key===cur)||PEERS[0];
@@ -237,87 +320,182 @@ const alertsOf=s=>Object.fromEntries((s.alerts||[]).map(a=>[a.key,a]));
 const isLaptop=s=>(s.capabilities?.device_class? s.capabilities.device_class==='laptop':cur==='laptop');
 
 function pickCards(s){
-  // 卡片只放「与下方详情不重复」的总览值；电压等细节一律放到详情栏底部画迷你曲线。
-  // 台式 4 张 / 笔记本 2 张，配合 data-cols 用 4 列 / 2 列，宽屏下一行填满不留白。
-  const keys=isLaptop(s)
-    ?['cpuTemp','cpuCoreMax']
-    :['cpuTemp','cpuCoreMax','gpuCore','gpuHot'];
+  const keys=isLaptop(s)?['cpuTemp','cpuCoreMax','memPct']:['cpuTemp','cpuCoreMax','gpuCore'];
   return keys.map(k=>HERO_POOL.find(c=>c.k===k)).filter(Boolean);
 }
-function ringPct(cfg,v){return Math.max(0,Math.min(1,v/(cfg.max||100)))}
-function drawRing(cv,pct,color){
+
+const HW_FALLBACK={stops:['#ff5e1a','#ffb347','#ff3b5c'],warn:'#ffb347',bad:'#ff3b5c',cpu:'#ffb347',gpu:'#ff5e1a',track:'rgba(255,255,255,.10)',lineCap:'round'};
+const pal=()=>(window.getHwmonThemePalette?window.getHwmonThemePalette():HW_FALLBACK);
+const themeName=()=>(window.getHwmonTheme?window.getHwmonTheme():'hypercar');
+function hex2rgb(s){let h=String(s==null?'':s).replace('#','');if(h.length===3)h=h.split('').map(x=>x+x).join('');return[parseInt(h.slice(0,2),16)||0,parseInt(h.slice(2,4),16)||0,parseInt(h.slice(4,6),16)||0]}
+function mixColor(a,b,f){const A=hex2rgb(a),B=hex2rgb(b);return'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*f)).join(',')+')'}
+function colorAt(stops,t){const n=stops.length-1;if(n<=0)return stops[0];const p=Math.max(0,Math.min(1,t))*n,i=Math.min(n-1,Math.floor(p));return mixColor(stops[i],stops[i+1],p-i)}
+function cssStops(){return pal().stops.join(',')}
+function ringTone(color){
+  const P=pal();
+  if(!color||color==='theme')return'theme';
+  if(color==='warn'||color===P.warn||color==='#fbbf24'||color==='#ffb347')return P.warn;
+  if(color==='bad'||color===P.bad||color==='#fb7185'||color==='#ff3b5c')return P.bad;
+  return'theme';
+}
+
+/* 统一仪表盘绘制：isMaster=true 画 360° 大主环；isMaster=false 画 270° 开口跑车转速表 */
+function drawDial(cv,pct,color,isMaster){
   if(!cv)return;
-  // 按实际 CSS 宽高分别设位图，并用较短边定半径：即使布局被压扁也保持正圆
-  const dpr=window.devicePixelRatio||1,wCss=cv.clientWidth||100,hCss=cv.clientHeight||wCss;
+  const P=pal(),tone=ringTone(color);
+  const dpr=window.devicePixelRatio||1,wCss=cv.clientWidth||(isMaster?138:142),hCss=cv.clientHeight||(isMaster?138:114);
   if(!wCss||!hCss)return;
   const bw=Math.round(wCss*dpr),bh=Math.round(hCss*dpr);
   if(cv.width!==bw||cv.height!==bh){cv.width=bw;cv.height=bh}
-  cv.dataset.pct=pct;cv.dataset.color=color;
+  cv.dataset.pct=pct;cv.dataset.color=color;cv.dataset.master=isMaster?'1':'0';
   const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,wCss,hCss);
-  const size=Math.min(wCss,hCss),lw=Math.max(5,size*.068),r=size/2-lw/2-1;
-  const cx=wCss/2,cy=hCss/2;
-  // 底弧要够亮：平板/高亮环境下 .075 几乎不可见，会让人误以为只剩半个椭圆
-  c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.strokeStyle='rgba(255,255,255,.16)';c.lineWidth=lw;c.stroke();
-  if(pct<=.001)return;const start=-Math.PI/2,end=start+Math.PI*2*pct;
-  c.beginPath();c.arc(cx,cy,r,start,end);c.strokeStyle=color;c.lineWidth=lw;c.lineCap='round';c.stroke();
+
+  const cx=wCss/2,cy=isMaster?hCss/2:hCss*0.58;
+  const r=isMaster?Math.min(wCss,hCss)*0.40:Math.min(wCss,hCss)*0.43;
+  const start=isMaster?-Math.PI*0.5:Math.PI*0.78;
+  const span=isMaster?Math.PI*2:Math.PI*1.44;
+  const lw=isMaster?10:8.5;
+  const p=Math.max(0,Math.min(1,pct||0));
+  const single=tone==='theme'?null:tone;
+
+  // 外圈刻度
+  const ticks=isMaster?36:24;
+  for(let i=0;i<=ticks;i++){
+    const a=start+(span*i)/ticks;
+    const major=i%6===0;
+    const r1=r+(major?7:4),r2=r+1;
+    const on=(i/ticks)<=p;
+    c.beginPath();
+    c.moveTo(cx+Math.cos(a)*r1,cy+Math.sin(a)*r1);
+    c.lineTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2);
+    c.strokeStyle=on?(single||colorAt(P.stops,i/ticks)):'rgba(255,255,255,.15)';
+    c.lineWidth=major?1.6:1;c.lineCap='round';c.stroke();
+  }
+
+  // 底轨
+  c.beginPath();c.arc(cx,cy,r-6,start,start+span);
+  c.strokeStyle=P.track;c.lineWidth=lw;c.lineCap='round';c.stroke();
+
+  if(p<=.002){c.shadowBlur=0;return}
+  const end=start+span*p,glow=single||P.stops[0];
+  c.save();c.shadowBlur=16;c.shadowColor=glow+'99';
+  c.beginPath();c.arc(cx,cy,r-6,start,end);c.strokeStyle=glow+'2e';c.lineWidth=lw;c.lineCap='round';c.stroke();
+  c.restore();
+
+  if(single){
+    c.beginPath();c.arc(cx,cy,r-6,start,end);c.strokeStyle=single;c.lineWidth=lw;c.lineCap='round';c.stroke();
+  }else{
+    const segs=Math.max(24,Math.round(90*p)),step=(span*p)/segs;
+    c.lineWidth=lw;c.lineCap='butt';
+    for(let i=0;i<segs;i++){
+      const a0=start+step*i,a1=a0+step*1.06;
+      c.beginPath();c.arc(cx,cy,r-6,a0,a1);c.strokeStyle=colorAt(P.stops,(i+.5)/segs);c.stroke();
+    }
+    c.lineCap='round';
+    c.beginPath();c.arc(cx,cy,r-6,start-.001,start+.001);c.strokeStyle=colorAt(P.stops,0);c.stroke();
+    c.beginPath();c.arc(cx,cy,r-6,end-.001,end+.001);c.strokeStyle=colorAt(P.stops,1);c.stroke();
+  }
+
+  const tx=cx+Math.cos(end)*(r-6),ty=cy+Math.sin(end)*(r-6);
+  c.save();c.shadowBlur=13;c.shadowColor='#fff';
+  c.beginPath();c.arc(tx,ty,3.8,0,Math.PI*2);c.fillStyle='#fff';c.fill();
+  c.restore();c.shadowBlur=0;
 }
+
 window.addEventListener('resize',()=>{
-  document.querySelectorAll('.ring canvas').forEach(cv=>{
-    drawRing(cv,parseFloat(cv.dataset.pct||0),cv.dataset.color||'#60a5fa');
+  const mc=document.getElementById('masterCanvas');
+  if(mc)drawDial(mc,parseFloat(mc.dataset.pct||0),mc.dataset.color||'theme',true);
+  document.querySelectorAll('#hero canvas').forEach(cv=>{
+    drawDial(cv,parseFloat(cv.dataset.pct||0),cv.dataset.color||'theme',false);
   });
 });
+
 function rebuildHero(cards){
   const host=document.getElementById('hero');
-  // 按卡片数选能整除的列数（4 张→4 列、3 张→3 列、2 张→2 列），末行不留空格。
-  host.dataset.cols = cards.length % 4 === 0 ? '4' : cards.length % 3 === 0 ? '3' : String(Math.min(cards.length, 4));
-  host.innerHTML=cards.map(cfg=>`<div class="card unknown" data-k="${cfg.k}">
-    ${cfg.kind==='metric'?`<div class="metric-box"><div class="num">--</div><div class="unit">${cfg.u}</div></div>`:`<div class="ring"><canvas></canvas><div class="val"><div class="num">--</div><div class="unit">${cfg.u}</div></div></div>`}
-    <div class="name">${cfg.t}</div><div class="meta"></div><div class="state">等待数据</div></div>`).join('');
+  host.innerHTML=cards.map(cfg=>`<article class="gauge-card unknown" data-k="${cfg.k}">
+    <div class="gauge-head"><span>${cfg.t}</span><span class="gauge-tag">等待</span></div>
+    <div class="gauge-box"><canvas></canvas><div class="gauge-val"><span class="num">--</span><span class="unit">${cfg.u}</span></div></div>
+    <div class="gauge-sub"></div></article>`).join('');
 }
+
 function metaOf(k,s){
   switch(k){
-    case'gpuCore':return'预警 80 / 严重 90°C';case'gpuHot':return'预警 90 / 严重 105°C';
-    case'gpuMem':return'预警 90 / 严重 100°C';case'pin12v':return'整路电压 · 低压预警 ≤11.8V';
+    case'gpuCore':return'预警 80 / 严重 90°C';
     case'cpuTemp':return'封装温度 · 点击看每核明细';
-    case'cpuCoreMax':return s.cpu?.cores?.hottest
-      ?`最热 ${s.cpu.cores.hottest.label} · 预警 85 / 严重 95°C`
-      :'最热核心 · 预警 85 / 严重 95°C';
-    case'gpuPower':return'中性监控 · 不作独立健康告警';case'cpuPower':return'中性监控 · 不作独立健康告警';
-    case'cpuLoad':return'处理器总占用 · 中性监控';case'memPct':return'资源提示 · 预警 75 / 严重 90%';
-    case'diskMax':return`${s.disk?.length||0} 块磁盘中的最高占用`;default:return'';
+    case'cpuCoreMax':return s.cpu?.cores?.hottest?`最热 ${s.cpu.cores.hottest.label} · 预警 85°C`:'最热核心 · 预警 85 / 严重 95°C';
+    case'cpuLoad':return'处理器总占用 · 中性监控';
+    case'memPct':return'资源提示 · 预警 75 / 严重 90%';
+    default:return'';
   }
 }
+
 function setCard(cfg,v,s){
-  const card=document.querySelector(`.card[data-k="${cfg.k}"]`);if(!card)return;
+  const card=document.querySelector(`.gauge-card[data-k="${cfg.k}"]`);if(!card)return;
   const has=Number.isFinite(v),alert=alertsOf(s)[cfg.metric],st=!has?'unknown':alert?.severity||'ok';
   card.classList.remove('ok','warn','bad','unknown');card.classList.add(st);
   card.querySelector('.num').textContent=has?v.toFixed(cfg.dp??1):'--';
-  if(cfg.kind!=='metric')drawRing(card.querySelector('canvas'),has?ringPct(cfg,v):0,st==='bad'?'#fb7185':st==='warn'?'#fbbf24':'#60a5fa');
-  const meta=card.querySelector('.meta'),txt=metaOf(cfg.k,s);if(meta.textContent!==txt)meta.textContent=txt;
-  card.querySelector('.state').textContent=!has?'无数据':alert?st==='bad'?'严重':'预警':cfg.neutral?'实时':'正常';
+  drawDial(card.querySelector('canvas'),has?Math.max(0,Math.min(1,v/(cfg.max||100))):0,st==='bad'?'bad':st==='warn'?'warn':'theme',false);
+  const meta=card.querySelector('.gauge-sub'),txt=metaOf(cfg.k,s);if(meta.textContent!==txt)meta.textContent=txt;
+  card.querySelector('.gauge-tag').textContent=!has?'无数据':alert?(st==='bad'?'严重':'预警'):(cfg.neutral?'实时':'正常');
 }
+
+function updateMaster(s){
+  const laptop=isLaptop(s),g=s.gpu||{},c=s.cpu||{},m=s.mem||{};
+  document.getElementById('hwCode').textContent=(s.device||peerNow().device)+' // 8090';
+  const masterEl=document.getElementById('health');
+  if(laptop){
+    masterEl.setAttribute('data-k','cpuTemp');
+    const val=c.temp,pct=Number.isFinite(val)?val/105:0;
+    const al=alertsOf(s)['cpu.temp']?.severity;
+    document.getElementById('masterNum').textContent=fmt(val,1);
+    document.getElementById('masterUnit').textContent='CPU 封装 °C';
+    document.getElementById('masterTitle').textContent=c.name||'笔记本处理器';
+    const badges=[`功耗 ${fmt(c.power,1)}W`,`占用 ${fmt(c.load,0)}%`,g.clock?`核显 ${fmt(g.clock,0)} MHz`:`内存 ${fmt(m.pct,0)}%`];
+    document.getElementById('masterBadges').innerHTML=badges.map(b=>`<span class="mini-badge">${escapeHtml(b)}</span>`).join('');
+    drawDial(document.getElementById('masterCanvas'),pct,al||'theme',true);
+  }else{
+    masterEl.removeAttribute('data-k');
+    const val=g.hot,pct=Number.isFinite(val)?val/115:0;
+    const al=alertsOf(s)['gpu.hot']?.severity;
+    document.getElementById('masterNum').textContent=fmt(val,1);
+    document.getElementById('masterUnit').textContent='GPU 热点 °C';
+    document.getElementById('masterTitle').textContent=g.name||'独立显卡';
+    const badge=(k,v,u)=>`<span class="mini-badge"><span class="mb-k">${k}</span><b class="mb-v">${v}</b><small class="mb-u">${u}</small></span>`;
+    const badges=[
+      badge('整卡',fmt(g.power,0),'W'),
+      g.pin_volt!=null?badge('16pin',fmt(g.pin_volt,2),'V'):badge('风扇',g.fan!=null?Math.round(g.fan):'--','RPM'),
+      badge('显存',fmt(g.mem,1),'°C')
+    ];
+    document.getElementById('masterBadges').innerHTML=badges.join('');
+    drawDial(document.getElementById('masterCanvas'),pct,al||'theme',true);
+  }
+}
+
 function updateHero(s){
   const cards=pickCards(s),sig=cur+':'+cards.map(c=>c.k).join(',');
   if(sig!==layoutSig){layoutSig=sig;activeCards=cards;rebuildHero(cards)}
   activeCards.forEach(cfg=>setCard(cfg,GET[cfg.k]?.(s),s));
+  updateMaster(s);
 }
-function setStatus(state,text){const live=document.getElementById('live');live.className='live '+state;document.getElementById('liveTxt').textContent=text}
+
+function setStatus(state,text){if(window.setTopbarLive){window.setTopbarLive(state,text);return}const live=document.getElementById('live');if(live){live.className='live '+state;const t=document.getElementById('liveTxt');if(t)t.textContent=text}}
 function sourceText(s){
   const caps=s.capabilities||{},gpuz=caps.gpuz_expected?(s.sources?.gpuz?'GPU-Z 正常':'GPU-Z 异常'):'GPU-Z 不适用';
   return`LHM ${s.sources?.lhm?'正常':'断开'} · ${gpuz}`;
 }
 function renderHealth(s){
   const h=s.health||{status:'ok',label:'运行正常'},alerts=s.alerts||[],box=document.getElementById('health');
-  box.className='health '+h.status;document.getElementById('healthTitle').textContent=h.label;
-  // 按 数据源故障 > 硬件越限 > 资源提示 排序，重要信息不被资源提示挤掉。
+  box.className='master-card health '+h.status;
+  document.getElementById('healthTitle').textContent=(h.status==='ok'?'SYSTEM NOMINAL · ':'')+h.label;
   const rank=a=>a.category==='source'?0:a.category==='resource'?2:1;
-  const top=[...alerts].sort((a,b)=>rank(a)-rank(b)).slice(0,3);
-  document.getElementById('healthDetail').innerHTML=top.length?top.map(a=>`<div><b>${escapeHtml(a.message)}</b>${durationText(a)}<span class="alert-rule">${escapeHtml(a.rule||'')}</span></div>`).join(''):'温度、电压、资源与数据源均未发现异常';
-  const age=Number.isFinite(s.snapshot_age_ms)?` · ${Math.round(s.snapshot_age_ms/1000)} 秒前采样`:'';
-  const res=h.resource?` · 资源提示 ${h.resource} 项（不计入健康状态）`:'';
-  document.getElementById('healthMeta').textContent=`采样时间 ${formatTime(s.ts)}${age} · ${sourceText(s)}${res}`;
+  const top=[...alerts].sort((a,b)=>rank(a)-rank(b)).slice(0,2);
+  document.getElementById('healthDetail').innerHTML=top.length?top.map(a=>`<div><b>${escapeHtml(a.message)}</b>${durationText(a)}<span class="alert-rule">${escapeHtml(a.rule||'')}</span></div>`).join(''):'温度、电压、资源与数据源均在安全阈值内';
+  const age=Number.isFinite(s.snapshot_age_ms)?` · ${Math.round(s.snapshot_age_ms/1000)}s 前`:'';
+  const res=h.resource?` · 资源提示 ${h.resource} 项`:'';
+  document.getElementById('healthMeta').textContent=`采样 ${formatTime(s.ts)}${age}${res}`;
   document.getElementById('sourceFoot').textContent=sourceText(s);
 }
+
 function barRow(k,pct,valHtml,cls='',title='',rowCls=''){
   const inner=Number.isFinite(pct)?`<i class="${cls}" style="width:${Math.max(0,Math.min(100,pct*100)).toFixed(1)}%"></i>`:'';
   return`<div class="row ${rowCls}"><div class="k" title="${escapeHtml(title||k)}">${escapeHtml(k)}</div><div class="bar ${Number.isFinite(pct)?'':'none'}">${inner}</div><div class="v ${cls}">${valHtml}</div></div>`;
@@ -326,11 +504,6 @@ function metricRow(label,value,unit,pct,key,s,dp=1){
   const a=alertsOf(s)[key],cls=a?.severity||'';
   return barRow(label,pct,`${fmt(value,dp)}<small>${unit}</small>`,cls);
 }
-/* ---------------- 电压迷你曲线 ----------------
-   详情栏的电压不再用静态进度条，统一放到各栏最下方画历史折线。
-   数据来自 /api/history（pin_volt、cpu_volt）；refreshCharts() 与
-   renderDetail() 各调一次，保证详情栏每 2 秒重建 DOM 后曲线仍在。
-*/
 function sparkRow(label,key,value,unit,dp,s,alertKey){
   const a=alertKey?alertsOf(s)[alertKey]:null,sev=a?.severity||'';
   const val=Number.isFinite(value)?`${value.toFixed(dp)}<small>${unit}</small>`:`--<small>${unit}</small>`;
@@ -339,31 +512,35 @@ function sparkRow(label,key,value,unit,dp,s,alertKey){
     `<div class="v ${sev}">${val}</div></div>`;
 }
 function renderVoltageSparks(h){
+  const P=pal(),rainbow=themeName()==='rainbow';
   document.querySelectorAll('canvas.spark').forEach(cv=>{
     const key=cv.dataset.spark,w=cv.clientWidth,ht=cv.clientHeight,dpr=window.devicePixelRatio||1;
     if(!w||!ht)return;
     cv.width=Math.round(w*dpr);cv.height=Math.round(ht*dpr);
     const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,ht);
-    // 固定量程：16pin 用 11.0~13.0V 才能画出 11.8/12.6 阈值线；CPU 电压用 0~1.5V。
     const lo=key==='pin_volt'?11.0:0,hi=key==='pin_volt'?13.0:1.5;
     const y=v=>ht-2-(Math.max(lo,Math.min(hi,v))-lo)/(hi-lo)*(ht-4);
     if(key==='pin_volt'){
-      g.setLineDash([3,3]);g.strokeStyle='rgba(251,191,36,.45)';g.lineWidth=1;
+      g.setLineDash([3,3]);g.strokeStyle='rgba(251,191,36,.42)';g.lineWidth=1;
       [11.8,12.6].forEach(v=>{g.beginPath();g.moveTo(0,y(v));g.lineTo(w,y(v));g.stroke()});
       g.setLineDash([]);
     }
-    // 与主图 drawChart 一致：按真实时间戳定位，null 处断开，不压缩时间轴。
     const times=(h&&h.t)||[],raw=(h&&h[key])||[];
     if(raw.filter(Number.isFinite).length<2||times.length<2){
-      g.fillStyle='#667286';g.font='10px sans-serif';g.textAlign='center';
+      g.fillStyle='rgba(160,155,148,.85)';g.font='10px sans-serif';g.textAlign='center';
       g.fillText('等待历史采样',w/2,ht/2+3);return;
     }
     const t0=times[0],span=Math.max(1,times[times.length-1]-t0);
     const x=t=>2+(t-t0)/span*(w-4);
-    // 曲线颜色跟随实际告警等级：正常就是蓝色，别把 11.9V 画成预警黄。
     const sev=cv.dataset.severity;
-    const color=sev==='bad'?'#fb7185':sev==='warn'?'#fbbf24':'#60a5fa';
-    g.beginPath();g.strokeStyle=color;g.lineWidth=1.6;g.lineJoin='round';
+    const color=sev==='bad'?P.bad:sev==='warn'?P.warn:P.cpu;
+    let stroke=color;
+    if(rainbow&&!sev){
+      const lg=g.createLinearGradient(0,0,w,0);
+      P.stops.forEach((cc,i)=>lg.addColorStop(P.stops.length===1?0:i/(P.stops.length-1),cc));
+      stroke=lg;
+    }
+    g.save();g.beginPath();g.strokeStyle=stroke;g.lineWidth=1.8;g.lineJoin='round';g.shadowBlur=8;g.shadowColor=color+'99';
     let open=false,last=null;
     for(let i=0;i<raw.length;i++){
       const v=raw[i],t=times[i];
@@ -372,25 +549,27 @@ function renderVoltageSparks(h){
       if(!open){g.moveTo(xx,yy);open=true}else g.lineTo(xx,yy);
       last=[xx,yy];
     }
-    g.stroke();
-    if(last){g.beginPath();g.arc(last[0],last[1],2,0,Math.PI*2);g.fillStyle=color;g.fill()}
+    g.stroke();g.restore();
+    if(last){
+      g.save();g.shadowBlur=10;g.shadowColor=color;
+      g.beginPath();g.arc(last[0],last[1],3.1,0,Math.PI*2);g.fillStyle=color;g.fill();
+      g.beginPath();g.arc(last[0],last[1],1.4,0,Math.PI*2);g.fillStyle='#fff';g.fill();
+      g.restore();
+    }
   });
 }
+
 function renderDetail(s){
   const g=s.gpu||{},c=s.cpu||{},m=s.mem||{},laptop=isLaptop(s);
   document.getElementById('gpuTitle').textContent=laptop?'集成显卡':'显卡';
   document.getElementById('gpuModel').textContent=g.name||'未识别型号';document.getElementById('cpuModel').textContent=c.name||'未识别型号';
   let gpuRows;
   if(laptop){
-    // 核显补齐 4 行：LHM 把 3D 引擎占用叫 "D3D 3D"（后端已兜底），
-    // 再加上功耗与共享显存，让左右两块面板行数接近、等高后不留大片空白。
     gpuRows=[
       barRow('核心频率',(g.clock||0)/1600,`${fmt(g.clock,0)}<small>MHz</small>`),
       barRow('3D 引擎占用',Number.isFinite(g.load)?g.load/100:null,`${fmt(g.load,0)}<small>%</small>`),
       barRow('核显功耗',(g.power||0)/45,`${fmt(g.power,1)}<small>W</small>`),
-      barRow('共享显存',Number.isFinite(g.mem_pct)?g.mem_pct/100:null,
-        `${fmt(g.mem_pct,0)}<small>%</small>`,'',
-        `共享显存 ${fmt(g.mem_used,0)} / ${fmt(g.mem_total,0)} MB`)
+      barRow('共享显存',Number.isFinite(g.mem_pct)?g.mem_pct/100:null,`${fmt(g.mem_pct,0)}<small>%</small>`,'',`共享显存 ${fmt(g.mem_used,0)} / ${fmt(g.mem_total,0)} MB`)
     ].join('');
   }else{
     gpuRows=[
@@ -400,7 +579,6 @@ function renderDetail(s){
       barRow('核心频率',(g.clock||0)/3200,`${fmt(g.clock,0)}<small>MHz</small>`),
       barRow('16pin 功耗',(g.pin_power||0)/600,`${fmt(g.pin_power,0)}<small>W</small>`),
       barRow('风扇转速',(g.fan||0)/3000,`${g.fan!=null?Math.round(g.fan):'--'}<small>RPM</small>`),
-      // 电压统一放栏位最下，用迷你曲线代替静态进度条
       sparkRow('16pin 电压','pin_volt',g.pin_volt,'V',2,s,'gpu.pin_volt')
     ].join('');
   }
@@ -411,7 +589,6 @@ function renderDetail(s){
     barRow('封装功耗',(c.power||0)/(laptop?95:219),`${fmt(c.power)}<small>W</small>`),
     barRow('总占用',(c.load||0)/100,`${fmt(c.load,0)}<small>%</small>`),
     barRow('核心频率',(c.clock||0)/5600,`${fmt(c.clock,0)}<small>MHz</small>`),
-    // 笔记本与台式共用：CPU 电压迷你曲线放栏位最下
     sparkRow('CPU 电压','cpu_volt',c.volt,'V',3,s)
   ].join('');
   const disks=s.disk||[];document.getElementById('diskCount').textContent=disks.length?`共 ${disks.length} 块 · 完整名称可长按或悬停查看`:'';
@@ -420,7 +597,6 @@ function renderDetail(s){
   else html+=barRow('内存数据',null,`<small>LHM 数据含页面文件，未换算物理占用</small>`);
   html+=disks.map((d,i)=>{const a=alertsOf(s)[`disk.${i}`];return barRow(d.name,d.used_pct/100,`${fmt(d.used_pct,0)}<small>%</small>`,a?.severity||'',d.name,'disk-row')}).join('');
   document.getElementById('otherRows').innerHTML=html||'<div class="empty-row">暂无存储与内存数据</div>';
-  // innerHTML 重建了 canvas，用上一次历史数据立刻补画，避免每 2 秒闪一下空白。
   renderVoltageSparks(window._lastHist);
 }
 function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
@@ -430,7 +606,6 @@ function durationText(a){
   const seconds=Math.max(0,Math.round((Date.now()-a.since)/1000));
   return`<span> · 持续 ${seconds<60?seconds+' 秒':Math.floor(seconds/60)+' 分钟'}</span>`;
 }
-
 async function fetchJSON(peer,path,timeout=4000){
   const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),timeout);
   try{const r=await fetch(peer.base+path,{cache:'no-store',signal:ctrl.signal});if(!r.ok)return null;return await r.json()}catch(e){return null}finally{clearTimeout(timer)}
@@ -448,28 +623,53 @@ function clearData(message){
 }
 function renderOffline(message){
   CoreInspector.close();
-  setStatus('bad',message);clearData(message);const box=document.getElementById('health');box.className='health bad';
-  document.getElementById('healthTitle').textContent='设备不可用';document.getElementById('healthDetail').textContent=message+'，旧详情与曲线已清除';
-  document.getElementById('healthMeta').textContent='请检查 agent、LHM、GPU-Z 或 EasyTier 连接';document.getElementById('sourceFoot').textContent='数据源不可用';
-  document.getElementById('dailyMeta').textContent='设备离线，使用小结不可用';const ds=document.getElementById('dailyStats');ds.classList.remove('pending');ds.innerHTML='';document.getElementById('dailyEvents').textContent='';
+  setStatus('bad',message);clearData(message);const box=document.getElementById('health');box.className='master-card health bad';
+  document.getElementById('healthTitle').textContent='设备不可用';
+  document.getElementById('masterTitle').textContent=peerNow().label+'离线';
+  document.getElementById('healthDetail').textContent=message+'，旧详情与曲线已清除';
+  document.getElementById('healthMeta').textContent='请检查 agent、LHM 或 EasyTier 连接';
+  document.getElementById('sourceFoot').textContent='数据源不可用';
+  document.getElementById('dailyMeta').textContent='设备离线，使用小结不可用';
+  const ds=document.getElementById('dailyStats');ds.innerHTML='';document.getElementById('dailyEvents').textContent='';
+}
+function renderOfflinePanel(label){
+  CoreInspector.close();
+  clearData(label+'离线，实时明细不可用');
+  const box=document.getElementById('health');box.className='master-card health warn';
+  document.getElementById('healthTitle').textContent=label+'离线';
+  document.getElementById('masterTitle').textContent=label+' · 长期归档回放';
+  document.getElementById('healthDetail').textContent='实时快照不可用，下方曲线来自路由器长期归档（最后在线期间的数据）';
+  document.getElementById('healthMeta').textContent='开机后自动恢复实时';
+  document.getElementById('sourceFoot').textContent='路由器长期库 hub_longterm.db';
 }
 async function tick(){
   const seq=++tickSeq,peer=peerNow(),s=await fetchJSON(peer,'/api/snapshot');
   if(seq!==tickSeq||cur!==peer.key)return;
-  if(!s||s.online===false){renderOffline(peer.label+'离线');return}
+  if(!s||s.online===false){
+    if(isLongRange()){
+      setStatus('warn',peer.label+'离线 · 显示路由器历史归档');
+      renderOfflinePanel(peer.label);refreshCharts();return;
+    }
+    renderOffline(peer.label+'离线');
+    if(offlineOnce){offlineOnce=false;refreshDaily()}
+    return;
+  }
+  offlineOnce=true;
   if(s.device&&peer.device&&s.device!==peer.device){renderOffline(peer.label+'设备身份不匹配');return}
   setStatus(s.health?.status==='bad'?'bad':s.health?.status==='warn'?'warn':'ok',formatTime(s.ts)+' 采样');
   lastSnapshot=s;updateHero(s);renderHealth(s);renderDetail(s);
   CoreInspector.update(s);
-  refreshCharts();
+  if(!isLongRange())refreshCharts();
 }
 async function refreshCharts(){
   const seq=++chartSeq,peer=peerNow(),range=chartRange;
-  const h=await fetchJSON(peer,'/api/history?window='+range,5000);
+  const h=isLongRange()
+    ? await fetchJSON({base:''},`/api/hw/longterm?device=${peer.key}&window=${range}`,7000)
+    : await fetchJSON(peer,'/api/history?window='+range,5000);
   if(seq!==chartSeq||cur!==peer.key||range!==chartRange)return;
-  if(h){renderCharts(h);renderVoltageSparks(h)}else{clearCharts();renderVoltageSparks(null)}
+  if(h&&h.t&&h.t.length){renderCharts(h);renderVoltageSparks(h)}
+  else{clearCharts();renderVoltageSparks(null)}
 }
-
 document.querySelectorAll('.dev').forEach(btn=>btn.addEventListener('click',()=>{
   if(btn.dataset.d===cur)return;cur=btn.dataset.d;tickSeq++;layoutSig='';
   document.querySelectorAll('.dev').forEach(b=>b.classList.toggle('active',b===btn));
@@ -481,9 +681,7 @@ async function refreshBadges(){
   if(seq!==badgeSeq)return;
   results.forEach(({p,s})=>{const dot=document.getElementById('dot-'+p.key);dot.className='dev-dot '+(s?.health?.status||(s?'warn':'bad'))});
 }
-
 function renderDailyLoading(keepOld){
-  // 切换时间范围：期间画面完全不动，等新数据到达后一次性原地更新
   if(keepOld)return;
   document.getElementById('summaryTitle').textContent=RANGE_TITLE[chartRange]||'使用小结';
   document.getElementById('dailyMeta').textContent='正在读取'+RANGE_LABEL[chartRange]+'采样统计…';
@@ -491,11 +689,8 @@ function renderDailyLoading(keepOld){
   document.getElementById('dailyEvents').textContent='';
 }
 function applyStats(html){
-  // 卡片数量不变时只改文本，不重建 DOM，避免切换时的重排与闪烁
-  const box=document.getElementById('dailyStats');
-  const tmp=document.createElement('div');tmp.innerHTML=html;
-  const src=tmp.children;
-  if(box.children.length!==src.length){box.innerHTML=html;return}
+  const box=document.getElementById('dailyStats'),tmp=document.createElement('div');tmp.innerHTML=html;
+  const src=tmp.children;if(box.children.length!==src.length){box.innerHTML=html;return}
   for(let i=0;i<src.length;i++){
     ['.stat-label','.stat-value','.stat-sub'].forEach(sel=>{
       const a=src[i].querySelector(sel),b=box.children[i].querySelector(sel);
@@ -534,18 +729,47 @@ function renderDaily(d){
   document.getElementById('dailyEvents').innerHTML=`<b>${escapeHtml(rangeLabel)}阈值以上累计（按采样估算）</b><br>`+events.map(escapeHtml).join(' · ');
 }
 async function refreshDaily(){
-  const seq=++dailySeq,peer=peerNow(),range=chartRange,d=await fetchJSON(peer,`/api/summary?window=${range}`,5000);
+  const seq=++dailySeq,peer=peerNow(),range=chartRange;
+  if(isLongRange()){
+    const h=await fetchJSON({base:''},`/api/hw/longterm?device=${peer.key}&window=${range}`,7000);
+    if(seq!==dailySeq||cur!==peer.key||range!==chartRange)return;
+    if(!h||!h.t||!h.t.length){
+      document.getElementById('summaryTitle').textContent=RANGE_TITLE[range]||'长周期概览';
+      document.getElementById('dailyMeta').textContent='长期归档暂无数据：路由器需要先累计分钟采样（每分钟一采）';
+      applyStats('');document.getElementById('dailyEvents').textContent='';return;
+    }
+    renderLongDaily(h);return;
+  }
+  const d=await fetchJSON(peer,`/api/summary?window=${range}`,5000);
   if(seq!==dailySeq||cur!==peer.key||range!==chartRange)return;
   if(!d){
+    const cached=await fetchJSON({base:''},`/api/hw/daily_cache?device=${peer.key}`,5000);
+    if(seq!==dailySeq||cur!==peer.key||range!==chartRange)return;
+    if(cached&&cached.ok&&cached.label){
+      renderDaily(cached);document.getElementById('dailyMeta').textContent+=' · 路由器缓存（'+cached._cached_date+'）';return;
+    }
     document.getElementById('summaryTitle').textContent=RANGE_TITLE[range]||'使用小结';
-    document.getElementById('dailyMeta').textContent='统计不可用：请确认后端与 SQLite 已启动（保留上次数据）';return
+    document.getElementById('dailyMeta').textContent='统计不可用：请确认后端与 SQLite 已启动（保留上次数据）';return;
   }
   if(!d.samples){
     document.getElementById('summaryTitle').textContent=RANGE_TITLE[range]||'使用小结';
-    document.getElementById('dailyMeta').textContent=`${d.label||RANGE_LABEL[range]} · 暂无采样，统计从部署后开始累积（保留上次数据）`;
-    return
+    document.getElementById('dailyMeta').textContent=`${d.label||RANGE_LABEL[range]} · 暂无采样，统计从部署后开始累积（保留上次数据）`;return;
   }
   renderDaily(d);
+}
+function renderLongDaily(h){
+  const clean=a=>(a||[]).filter(v=>Number.isFinite(v));
+  const avg=a=>{const v=clean(a);return v.length?v.reduce((x,y)=>x+y,0)/v.length:null};
+  const max=a=>{const v=clean(a);return v.length?Math.max(...v):null};
+  applyStats([
+    statCard('CPU 均温',`${fmt(avg(h.cpu_temp),1)} °C`,`日平均 · 单日最高 ${fmt(max(h.cpu_temp),1)} °C`),
+    statCard('GPU 热点',`${fmt(avg(h.gpu_hot),1)} °C`,`日平均 · 单日最高 ${fmt(max(h.gpu_hot),1)} °C`),
+    statCard('CPU 功耗',`${fmt(avg(h.cpu_power),0)} W`,'按天平均'),
+    statCard('GPU 功耗',`${fmt(avg(h.gpu_power),0)} W`,'按天平均')
+  ].join(''));
+  document.getElementById('summaryTitle').textContent=RANGE_TITLE[chartRange]||'长周期概览';
+  document.getElementById('dailyMeta').textContent=`${RANGE_LABEL[chartRange]} · ${h.t.length} 天 · 每天约 ${Math.round(avg(h.samples)||0)} 个分钟采样 · 来源：路由器长期库`;
+  document.getElementById('dailyEvents').innerHTML='<b>说明</b><br>长周期是每天的平均值，用来看趋势；分钟级细节请切回 5 分钟 / 1 小时。';
 }
 function updateRangeLabels(){
   const label=RANGE_LABEL[chartRange]||'近 5 分钟';
@@ -557,28 +781,30 @@ document.querySelectorAll('.range-btn').forEach(btn=>btn.addEventListener('click
   updateRangeLabels();renderDailyLoading(true);refreshCharts();refreshDaily();CoreInspector.onRangeChange();
 }));
 
-/* Canvas 图表：同图比较，按真实时间戳，null 断线。 */
 const CHART_WINDOW=300000;
 function hasSeries(s){return s.data.some(Number.isFinite)&&!(s.zeroMissing&&s.data.every(v=>!Number.isFinite(v)||v===0))}
 function niceMax(v){if(v<=10)return 10;const p=10**Math.floor(Math.log10(v)),n=v/p;const steps=[1,1.2,1.5,2,2.5,3,4,5,6,8,10];return steps.find(x=>n<=x)*p}
 function renderCharts(h){
-  const times=(h.t||[]).map(Number),laptop=isLaptop(lastSnapshot);
-  const tempSeries=[{key:'cpu',label:'CPU',data:h.cpu_temp||[],color:'#22d3ee',unit:'°C',thresholds:[85,95]}];
-  const powerSeries=[{key:'cpu',label:'CPU',data:h.cpu_power||[],color:'#22d3ee',unit:'W',thresholds:[]}];
+  const times=(h.t||[]).map(Number),dayMode=h._meta&&h._meta.bucket==='day';
+  const laptop=lastSnapshot?.capabilities?isLaptop(lastSnapshot):cur==='laptop';
+  const P=pal(),rainbow=themeName()==='rainbow',legendOf=c=>rainbow?('linear-gradient(90deg,'+cssStops()+')'):c;
+  const tempSeries=[{key:'cpu',label:'CPU',data:h.cpu_temp||[],color:P.cpu,legend:legendOf(P.cpu),unit:'°C',thresholds:dayMode?[]:[85,95]}];
+  const powerSeries=[{key:'cpu',label:'CPU',data:h.cpu_power||[],color:P.cpu,legend:legendOf(P.cpu),unit:'W',thresholds:[]}];
   if(!laptop){
-    tempSeries.unshift({key:'gpu',label:'GPU 热点',data:h.gpu_hot||[],color:'#60a5fa',unit:'°C',zeroMissing:true,thresholds:[90,105]});
-    powerSeries.unshift({key:'gpu',label:'GPU',data:h.gpu_power||[],color:'#60a5fa',unit:'W',zeroMissing:true,thresholds:[]});
+    tempSeries.unshift({key:'gpu',label:'GPU 热点',data:h.gpu_hot||[],color:P.gpu,legend:legendOf(P.gpu),unit:'°C',zeroMissing:true,thresholds:[90,105]});
+    powerSeries.unshift({key:'gpu',label:'GPU',data:h.gpu_power||[],color:P.gpu,legend:legendOf(P.gpu),unit:'W',zeroMissing:true,thresholds:[]});
   }
   drawChart(document.getElementById('cTemp'),{kind:'temp',times,meta:h._meta||{},series:tempSeries},'tempLegend','tempRange','tipTemp');
   drawChart(document.getElementById('cPower'),{kind:'power',times,meta:h._meta||{},series:powerSeries},'powerLegend','powerRange','tipPower');
 }
 function drawChart(cv,cfg,legendId,rangeId,tipId){
   cfg.series=cfg.series.filter(hasSeries);cv._chart=cfg;bindChart(cv,tipId);
+  const rainbow=themeName()==='rainbow',P=pal();
   const dpr=window.devicePixelRatio||1,w=Math.round(cv.clientWidth),h=Math.round(cv.clientHeight);
   if(!w||!h)return;const pixelW=Math.round(w*dpr),pixelH=Math.round(h*dpr);if(cv.width!==pixelW||cv.height!==pixelH){cv.width=pixelW;cv.height=pixelH}
   const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,w,h);
   const legend=document.getElementById(legendId),range=document.getElementById(rangeId);
-  legend.innerHTML=cfg.series.map(s=>{const vals=s.data.filter(Number.isFinite),last=vals.length?vals[vals.length-1]:null;return`<span><i style="background:${s.color}"></i>${s.label} <b>${fmt(last,s.unit==='W'?0:1)}${s.unit}</b></span>`}).join('');
+  legend.innerHTML=cfg.series.map(s=>{const vals=s.data.filter(Number.isFinite),last=vals.length?vals[vals.length-1]:null;return`<span><i style="background:${s.legend||s.color}"></i>${s.label} <b>${fmt(last,s.unit==='W'?0:1)}${s.unit}</b></span>`}).join('');
   if(!cfg.series.length){c.fillStyle='#667286';c.font='12px sans-serif';c.textAlign='center';c.fillText('当前设备没有可用的'+ (cfg.kind==='temp'?'温度':'功耗')+'历史数据',w/2,h/2);range.textContent='';return}
   const vals=cfg.series.flatMap(s=>s.data.filter(Number.isFinite));
   const minV=0,maxV=cfg.kind==='temp'?Math.max(100,Math.ceil(Math.max(...vals)/10)*10):niceMax(Math.max(10,...vals));
@@ -587,18 +813,55 @@ function drawChart(cv,cfg,legendId,rangeId,tipId){
   const x=t=>pad.l+(Math.max(start,Math.min(latest,t))-start)/(latest-start)*plotW,y=v=>pad.t+plotH-(Math.max(minV,Math.min(maxV,v))-minV)/(maxV-minV)*plotH;
   c.font='10px sans-serif';c.lineWidth=1;c.setLineDash([]);
   for(let i=0;i<=4;i++){
-    const value=maxV-(maxV-minV)*i/4,yy=pad.t+plotH*i/4;c.beginPath();c.moveTo(pad.l,yy);c.lineTo(w-pad.r,yy);c.strokeStyle='rgba(255,255,255,.065)';c.stroke();
-    c.fillStyle='#8792a4';c.textAlign='right';c.textBaseline='middle';c.fillText(Math.round(value)+(cfg.kind==='temp'?'°':'W'),pad.l-7,yy);
+    const value=maxV-(maxV-minV)*i/4,yy=pad.t+plotH*i/4;c.beginPath();c.moveTo(pad.l,yy);c.lineTo(w-pad.r,yy);c.strokeStyle='rgba(255,255,255,.05)';c.stroke();
+    c.fillStyle='rgba(161,161,170,.72)';c.textAlign='right';c.textBaseline='middle';c.fillText(Math.round(value)+(cfg.kind==='temp'?'°':'W'),pad.l-7,yy);
   }
   for(let i=0;i<=4;i++){
-    const ts=start+(latest-start)*i/4,xx=pad.l+plotW*i/4;c.beginPath();c.moveTo(xx,pad.t);c.lineTo(xx,pad.t+plotH);c.strokeStyle='rgba(255,255,255,.035)';c.stroke();
-    c.fillStyle='#667286';c.textAlign=i===0?'left':i===4?'right':'center';c.textBaseline='top';c.fillText(new Date(ts).toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit'}),xx,h-17);
+    const ts=start+(latest-start)*i/4,xx=pad.l+plotW*i/4;c.beginPath();c.moveTo(xx,pad.t);c.lineTo(xx,pad.t+plotH);c.strokeStyle='rgba(255,255,255,.03)';c.stroke();
+    c.fillStyle='rgba(161,161,170,.65)';c.textAlign=i===0?'left':i===4?'right':'center';c.textBaseline='top';
+    c.fillText(cfg.meta&&cfg.meta.bucket==='day'
+      ?new Date(ts).toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'})
+      :new Date(ts).toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit'}),xx,h-17);
   }
   cfg.series.forEach(s=>(s.thresholds||[]).forEach(v=>{if(v>maxV)return;const yy=y(v);c.beginPath();c.setLineDash([4,4]);c.moveTo(pad.l,yy);c.lineTo(w-pad.r,yy);c.strokeStyle=s.color+'55';c.stroke();c.setLineDash([])}));
   cfg.series.forEach(s=>{
-    c.beginPath();c.strokeStyle=s.color;c.lineWidth=2;c.lineJoin='round';let open=false,last=null;
-    for(let i=0;i<s.data.length;i++){const v=s.data[i],t=cfg.times[i];if(!Number.isFinite(v)||!Number.isFinite(t)){open=false;continue}const xx=x(t),yy=y(v);if(!open){c.moveTo(xx,yy);open=true}else c.lineTo(xx,yy);last={x:xx,y:yy}}
-    c.stroke();if(last){c.beginPath();c.arc(last.x,last.y,3,0,Math.PI*2);c.fillStyle=s.color;c.fill()}
+    const segs=[];let cur=null;
+    for(let i=0;i<s.data.length;i++){
+      const v=s.data[i],t=cfg.times[i];
+      if(!Number.isFinite(v)||!Number.isFinite(t)){cur=null;continue}
+      const xx=x(t),yy=y(v);
+      if(!cur){cur=[];segs.push(cur)}
+      cur.push([xx,yy]);
+    }
+    const grad=c.createLinearGradient(0,pad.t,0,pad.t+plotH);
+    grad.addColorStop(0,s.color+'44');grad.addColorStop(1,s.color+'00');
+    segs.forEach(seg=>{
+      if(seg.length<2)return;
+      c.beginPath();c.moveTo(seg[0][0],seg[0][1]);
+      for(let i=1;i<seg.length;i++)c.lineTo(seg[i][0],seg[i][1]);
+      c.lineTo(seg[seg.length-1][0],pad.t+plotH);c.lineTo(seg[0][0],pad.t+plotH);c.closePath();c.fillStyle=grad;c.fill();
+    });
+    let stroke=s.color;
+    if(rainbow){
+      const lg=c.createLinearGradient(pad.l,0,w-pad.r,0);
+      P.stops.forEach((cc,i)=>lg.addColorStop(P.stops.length===1?0:i/(P.stops.length-1),cc));
+      stroke=lg;
+    }
+    c.save();c.shadowBlur=12;c.shadowColor=s.color+'aa';
+    segs.forEach(seg=>{
+      if(!seg.length)return;
+      c.beginPath();c.moveTo(seg[0][0],seg[0][1]);
+      for(let i=1;i<seg.length;i++)c.lineTo(seg[i][0],seg[i][1]);
+      c.strokeStyle=stroke;c.lineWidth=2.5;c.lineJoin='round';c.lineCap='round';c.stroke();
+    });
+    c.restore();
+    const lastSeg=segs.length?segs[segs.length-1]:null;
+    if(lastSeg&&lastSeg.length){
+      const tail=lastSeg[lastSeg.length-1];
+      c.save();c.shadowBlur=14;c.shadowColor='#fff';
+      c.beginPath();c.arc(tail[0],tail[1],4,0,Math.PI*2);c.fillStyle='#fff';c.fill();
+      c.restore();
+    }
   });
   const allMin=Math.min(...vals),allMax=Math.max(...vals);
   const note=cfg.kind==='temp'
@@ -619,13 +882,6 @@ function bindChart(cv,tipId){
 window.addEventListener('resize',()=>{if(window._lastHist){renderCharts(window._lastHist);renderVoltageSparks(window._lastHist)}});
 const originalRenderCharts=renderCharts;renderCharts=function(h){window._lastHist=h;originalRenderCharts(h)};
 
-/* ---------------- 每核详情弹层（CoreInspector） ----------------
-   独立模块，对外只暴露 init / update / close / onRangeChange：
-   - 事件委托绑在 #hero：rebuildHero() 会 innerHTML 重建卡片，绑在卡片上会丢监听
-   - 实时值只取 lastSnapshot，不额外轮询；tick() 每 2 秒调 update() 原地改数值
-   - 表格骨架只在「核心布局变化」时重建，避免每 2 秒重置滚动位置与折叠状态
-   - 曲线按需请求 /api/core_history，跟随页面的 chartRange
-*/
 const CoreInspector=(()=>{
   const DETAIL_KEYS=new Set(['cpuTemp']);
   const FIELDS=[['temp','°C',1],['clock','MHz',0],['volt','V',3],['dist','°C',0]];
@@ -635,56 +891,27 @@ const CoreInspector=(()=>{
 
   const coresOf=()=>snapshot?.cpu?.cores||{};
   const layoutOf=c=>(c.groups||[]).map(g=>g.kind+':'+g.cores.map(x=>x.id).join(',')).join('|');
-  const coreMap=()=>{
-    const m=new Map();
-    (coresOf().groups||[]).forEach(g=>g.cores.forEach(x=>m.set(x.id,x)));
-    return m;
-  };
+  const coreMap=()=>{const m=new Map();(coresOf().groups||[]).forEach(g=>g.cores.forEach(x=>m.set(x.id,x)));return m};
   const cell=(v,dp,unit)=>Number.isFinite(v)?`${v.toFixed(dp)}${unit}`:'--';
 
-  /* 表格骨架：只在打开或核心布局变化时生成，保留滚动位置与 <details> 状态 */
   function renderStructure(){
-    const c=coresOf(),body=$('corePopBody');
-    layout=layoutOf(c);
-    if(!c.available){
-      body.innerHTML='<div class="core-empty">该设备未提供每核传感器<br>（LHM 在线但没有 P-Core / E-Core 明细）</div>';
-      return;
-    }
-    const groupsHtml=(c.groups||[]).map(g=>`<div class="core-group">
-      <div class="core-group-title">${escapeHtml(g.label)} · ${g.cores.length} 核</div>
-      <div class="core-table">
-        <div class="core-tr core-th"><span>核心</span><span>温度</span><span>频率</span><span>电压</span><span>距 TjMax</span></div>
-        ${g.cores.map(x=>`<div class="core-tr" data-core="${x.id}"><span>${escapeHtml(x.label)}</span>${
-          FIELDS.map(f=>`<span class="v" data-f="${f[0]}">--</span>`).join('')
-        }</div>`).join('')}
-      </div></div>`).join('');
+    const c=coresOf(),body=$('corePopBody');layout=layoutOf(c);
+    if(!c.available){body.innerHTML='<div class="core-empty">该设备未提供每核传感器<br>（LHM 在线但没有 P-Core / E-Core 明细）</div>';return}
+    const groupsHtml=(c.groups||[]).map(g=>`<div class="core-group"><div class="core-group-title">${escapeHtml(g.label)} · ${g.cores.length} 核</div><div class="core-table"><div class="core-tr core-th"><span>核心</span><span>温度</span><span>频率</span><span>电压</span><span>距 TjMax</span></div>${g.cores.map(x=>`<div class="core-tr" data-core="${x.id}"><span>${escapeHtml(x.label)}</span>${FIELDS.map(f=>`<span class="v" data-f="${f[0]}">--</span>`).join('')}</div>`).join('')}</div></div>`).join('');
     const threads=c.threads||[];
-    const threadHtml=threads.length?`<details class="core-threads"><summary>线程占用 · ${threads.length} 项（编号体系与 P/E 核不同，不合并）</summary>
-        <div class="core-thread-grid">${threads.map(t=>`<div class="core-thread" data-thread="${escapeHtml(t.id)}">
-          <span class="k" title="${escapeHtml(t.id)}">${escapeHtml(t.id.replace('CPU Core ',''))}</span>
-          <span class="bar"><i></i></span><span class="v">--</span></div>`).join('')}</div></details>`:'';
+    const threadHtml=threads.length?`<details class="core-threads"><summary>线程占用 · ${threads.length} 项（编号体系与 P/E 核不同，不合并）</summary><div class="core-thread-grid">${threads.map(t=>`<div class="core-thread" data-thread="${escapeHtml(t.id)}"><span class="k" title="${escapeHtml(t.id)}">${escapeHtml(t.id.replace('CPU Core ',''))}</span><span class="bar"><i></i></span><span class="v">--</span></div>`).join('')}</div></details>`:'';
     body.innerHTML=groupsHtml+threadHtml;
     if(!coreMap().has(selected))selected=c.hottest?.id||c.groups?.[0]?.cores?.[0]?.id||'';
   }
-
-  /* 每 2 秒只改数值与高亮，不碰 DOM 结构 */
   function renderValues(){
     const c=coresOf();if(!c.available)return;
     const map=coreMap(),hot=c.hottest?.id;
     $('corePopBody').querySelectorAll('.core-tr[data-core]').forEach(tr=>{
       const x=map.get(tr.dataset.core);if(!x)return;
-      FIELDS.forEach(([key,unit,dp])=>{
-        const el=tr.querySelector(`[data-f="${key}"]`);
-        if(el)el.textContent=cell(x[key],dp,unit);
-      });
-      tr.classList.toggle('hottest',x.id===hot);
-      tr.classList.toggle('selected',x.id===selected);
-      // 用文字而非颜色标明「最热」，避免和黄色告警混淆。
+      FIELDS.forEach(([key,unit,dp])=>{const el=tr.querySelector(`[data-f="${key}"]`);if(el)el.textContent=cell(x[key],dp,unit)});
+      tr.classList.toggle('hottest',x.id===hot);tr.classList.toggle('selected',x.id===selected);
       const nameEl=tr.querySelector('span:first-child');
-      if(nameEl){
-        const label=x.id===hot?`${x.label} · 最热`:x.label;
-        if(nameEl.textContent!==label)nameEl.textContent=label;
-      }
+      if(nameEl){const label=x.id===hot?`${x.label} · 最热`:x.label;if(nameEl.textContent!==label)nameEl.textContent=label}
     });
     const tmap=new Map((c.threads||[]).map(t=>[t.id,t]));
     $('corePopBody').querySelectorAll('.core-thread[data-thread]').forEach(el=>{
@@ -692,19 +919,14 @@ const CoreInspector=(()=>{
       el.querySelector('i').style.width=`${Math.max(0,Math.min(100,t.load||0)).toFixed(0)}%`;
       el.querySelector('.v').textContent=`${fmt(t.load,0)}%`;
     });
-    const sub=$('corePopSub');
-    const spread=Number.isFinite(c.spread)?` · 温差 ${fmt(c.spread,1)}°C`:'';
-    const top=history?._meta?.hottest_top;
+    const sub=$('corePopSub'),spread=Number.isFinite(c.spread)?` · 温差 ${fmt(c.spread,1)}°C`:'',top=history?._meta?.hottest_top;
     const topText=top?` · 区间最热 ${top.id} ${top.pct}%`:'';
     const txt=`${c.count} 个物理核心 · ${c.hottest?`最热 ${c.hottest.label} ${fmt(c.hottest.temp,1)}°C`:''}${spread}${topText} · 点击核心行看曲线`;
     if(sub.textContent!==txt)sub.textContent=txt;
   }
-
   function position(){
     if(!anchor)return;
     const pop=$('corePop'),r=anchor.getBoundingClientRect();
-    // 优先放卡片下方，空间不够再放上方，并同步限制高度：
-    // 弹层绝不能反过来盖住锚点卡片，否则连「点同一张卡关闭」都做不到。
     const below=window.innerHeight-r.bottom-10,above=r.top-10;
     const maxH=Math.max(180,Math.min(Math.max(below,above)-8,Math.round(window.innerHeight*0.72)));
     pop.style.maxHeight=maxH+'px';
@@ -713,7 +935,6 @@ const CoreInspector=(()=>{
     const left=Math.max(8,Math.min(window.innerWidth-w-8,r.left+r.width/2-w/2));
     pop.style.left=left+'px';pop.style.top=top+'px';
   }
-
   async function fetchHistory(){
     if(!anchor||!selected)return;
     const my=++reqSeq,peer=peerNow(),id=selected,key=`${peer.key}:${id}:${chartRange}`;
@@ -721,15 +942,11 @@ const CoreInspector=(()=>{
     lastFetchKey=key;
     const d=await fetchJSON(peer,`/api/core_history?core=${encodeURIComponent(id)}&window=${chartRange}`,5000);
     if(my!==reqSeq||!anchor||id!==selected)return;
-    history=d&&Array.isArray(d.t)?d:null;
-    drawSpark();renderValues(); // 同时刷新「区间最热」统计
+    history=d&&Array.isArray(d.t)?d:null;drawSpark();renderValues();
   }
-
-  /* 轻量折线：只画单核温度，不复用主图 drawChart（那套绑定了 legend / tip） */
   function drawSpark(){
     const cv=$('coreSpark');if(!cv)return;
-    const w=cv.clientWidth,h=cv.clientHeight,dpr=window.devicePixelRatio||1;
-    if(!w||!h)return;
+    const w=cv.clientWidth,h=cv.clientHeight,dpr=window.devicePixelRatio||1;if(!w||!h)return;
     cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);
     const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
     g.strokeStyle='rgba(255,255,255,.07)';g.lineWidth=1;
@@ -738,64 +955,55 @@ const CoreInspector=(()=>{
     $('coreChartLabel').textContent=`${coreMap().get(selected)?.label||selected||'—'} · 温度曲线`;
     if(pts.length<2){
       g.fillStyle='#667286';g.font='11px sans-serif';g.textAlign='center';
-      g.fillText(history?'该区间暂无采样（每 30 秒记录一次）':'正在读取历史…',w/2,h/2+4);
-      $('coreChartMeta').textContent='';return;
+      g.fillText(history?'该区间暂无采样（每 30 秒记录一次）':'正在读取历史…',w/2,h/2+4);$('coreChartMeta').textContent='';return;
     }
-    const vals=pts.map(p=>p[1]);
-    const lo=Math.max(0,Math.floor(Math.min(...vals)/10)*10-10),hi=Math.ceil(Math.max(...vals)/10)*10+10;
+    const vals=pts.map(p=>p[1]),lo=Math.max(0,Math.floor(Math.min(...vals)/10)*10-10),hi=Math.ceil(Math.max(...vals)/10)*10+10;
     const t0=pts[0][0],span=Math.max(1,pts[pts.length-1][0]-t0);
     const x=t=>6+(t-t0)/span*(w-12),y=v=>h-6-(v-lo)/(hi-lo)*(h-12);
-    g.beginPath();g.strokeStyle='#60a5fa';g.lineWidth=2;g.lineJoin='round';
+    const P=pal();let stroke=P.cpu;
+    if(themeName()==='rainbow'){const lg=g.createLinearGradient(0,0,w,0);P.stops.forEach((cc,i)=>lg.addColorStop(P.stops.length===1?0:i/(P.stops.length-1),cc));stroke=lg}
+    g.save();g.shadowBlur=8;g.shadowColor=P.cpu+'aa';
+    g.beginPath();g.strokeStyle=stroke;g.lineWidth=2;g.lineJoin='round';
     pts.forEach((p,i)=>i?g.lineTo(x(p[0]),y(p[1])):g.moveTo(x(p[0]),y(p[1])));
-    g.stroke();
+    g.stroke();g.restore();
     const last=pts[pts.length-1];
-    g.beginPath();g.arc(x(last[0]),y(last[1]),3,0,Math.PI*2);g.fillStyle='#60a5fa';g.fill();
+    g.save();g.shadowBlur=12;g.shadowColor='#fff';
+    g.beginPath();g.arc(x(last[0]),y(last[1]),3.8,0,Math.PI*2);g.fillStyle='#fff';g.fill();
+    g.restore();
     $('coreChartMeta').textContent=`${RANGE_LABEL[chartRange]||''} · ${fmt(last[1],1)}°C · 峰值 ${fmt(Math.max(...vals),1)}°C`;
   }
-
-  function open(card){
-    anchor=card;
-    $('corePop').hidden=false;
-    renderStructure();renderValues();position();
-    if(selected)fetchHistory();
-  }
-  function close(){
-    anchor=null;history=null;lastFetchKey='';reqSeq++;
-    $('corePop').hidden=true;
-  }
-  function update(s){
-    snapshot=s;
-    if(!anchor)return;
-    if(layoutOf(coresOf())!==layout)renderStructure();
-    renderValues();
-  }
+  function open(card){anchor=card;$('corePop').hidden=false;renderStructure();renderValues();position();if(selected)fetchHistory()}
+  function close(){anchor=null;history=null;lastFetchKey='';reqSeq++;$('corePop').hidden=true}
+  function update(s){snapshot=s;if(!anchor)return;if(layoutOf(coresOf())!==layout)renderStructure();renderValues()}
   function init(){
-    const hero=$('hero'),pop=$('corePop');
-    // 事件委托：卡片会被 innerHTML 重建，监听器必须挂在容器上。
-    hero.addEventListener('click',e=>{
-      const card=e.target.closest('.card[data-k]');
+    const layoutEl=document.querySelector('.hero-layout'),pop=$('corePop');
+    layoutEl.addEventListener('click',e=>{
+      const card=e.target.closest('[data-k]');
       if(!card||!DETAIL_KEYS.has(card.dataset.k))return;
-      e.stopPropagation();
-      if(anchor===card){close();return}
-      open(card);
+      e.stopPropagation();if(anchor===card){close();return}open(card);
     });
-    pop.addEventListener('click',e=>{
-      const tr=e.target.closest('.core-tr[data-core]');
-      if(!tr)return;
-      selected=tr.dataset.core;renderValues();fetchHistory();
-    });
+    pop.addEventListener('click',e=>{const tr=e.target.closest('.core-tr[data-core]');if(!tr)return;selected=tr.dataset.core;renderValues();fetchHistory()});
     $('corePopClose').addEventListener('click',close);
-    document.addEventListener('click',e=>{
-      if(anchor&&!pop.contains(e.target)&&!e.target.closest('.card[data-k]'))close();
-    });
+    document.addEventListener('click',e=>{if(anchor&&!pop.contains(e.target)&&!e.target.closest('[data-k]'))close()});
     document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
     window.addEventListener('scroll',()=>{if(anchor)position()},{passive:true});
     window.addEventListener('resize',()=>{if(anchor){position();drawSpark()}});
   }
-  return {init,update,close,onRangeChange:()=>{if(anchor)fetchHistory()}};
+  return {init,update,close,onRangeChange:()=>{if(anchor)fetchHistory()},redraw:()=>{if(anchor)drawSpark()}};
 })();
 
 CoreInspector.init();
+window.addEventListener('hwmon:theme',()=>{
+  const mc=document.getElementById('masterCanvas');
+  if(mc)drawDial(mc,parseFloat(mc.dataset.pct||0),mc.dataset.color||'theme',true);
+  document.querySelectorAll('#hero canvas').forEach(cv=>{drawDial(cv,parseFloat(cv.dataset.pct||0),cv.dataset.color||'theme',false)});
+  if(window._lastHist){
+    renderCharts(window._lastHist);
+    const h=window._lastHist;
+    if((h.cpu_volt||[]).filter(Number.isFinite).length>1||(h.pin_volt||[]).filter(Number.isFinite).length>1)renderVoltageSparks(h);
+  }
+  CoreInspector.redraw();
+});
 tick();refreshBadges();refreshDaily();setInterval(tick,2000);setInterval(refreshBadges,10000);setInterval(refreshDaily,30000);
 </script>
 </body>

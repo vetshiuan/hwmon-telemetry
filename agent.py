@@ -47,6 +47,10 @@ STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.environ.get("HWMON_DB", os.path.join(STATIC_DIR, "hwmon.db"))
 DB_RETENTION_DAYS = 7
 
+# LTX 资源库已迁到路由器（http://192.0.2.1:8089/ltx/），本机不再保留镜像副本。
+# 保留环境变量仅为兼容：若哪天又指向本地目录，路由会自动生效。
+LTX_DIR = os.environ.get("HWMON_LTX_DIR", "")
+
 HIST_LEN = 120
 POLL_INTERVAL = 2.0
 HIST_WINDOW_MS = int(HIST_LEN * POLL_INTERVAL * 1000)
@@ -71,7 +75,7 @@ _backup_state = {"last": None}
 
 # 工具页依赖：EasyTier CLI 与路由器 WOL 地址（均可用环境变量覆盖）
 EASYTIER_CLI = os.environ.get("EASYTIER_CLI") or default_easytier_cli()
-WOL_URL = os.environ.get("HWMON_WOL_URL", "http://127.0.0.1:8088/cgi-bin/wol")
+WOL_URL = os.environ.get("HWMON_WOL_URL", "http://192.0.2.1:8088/cgi-bin/wol")
 ET_CACHE_SECONDS = 10
 WOL_THROTTLE_SECONDS = 60
 
@@ -756,7 +760,6 @@ def build_snapshot(alert_tracker=None):
         "device_class": "laptop" if integrated else "desktop",
         "integrated_gpu": integrated,
         "gpu_temperature": not integrated,
-        "gpuz_expected": bool(os.path.exists(GPZ_CSV)) and not integrated,
     }
 
     # 核显设备不读取独显 GPU-Z 日志，避免适配器身份错配。
@@ -764,9 +767,9 @@ def build_snapshot(alert_tracker=None):
         gz, gz_meta = None, {"available": False, "expected": False, "age_ms": None, "error": "核显设备不适用"}
     else:
         gz, gz_meta = fetch_gpuz()
-        snap["capabilities"]["gpuz_expected"] = bool(gz_meta.get("expected"))
     snap["source_meta"]["gpuz"] = gz_meta
     snap["sources"]["gpuz"] = bool(gz_meta.get("available"))
+    # gpuz_expected 只在这里赋值一次：设备已识别出独立显卡型号，或 GPU-Z 日志标记为预期存在。
     snap["capabilities"]["gpuz_expected"] = bool(gz_meta.get("expected") or (not integrated and g.get("name")))
 
     if gz:
@@ -1068,6 +1071,532 @@ def daily_summary(date_text=None):
     return data
 
 
+# ---------------- 大模型用量统计（llm_usage） ----------------
+# 数据源是 WorkBuddy 会话日志 ~/.workbuddy/projects/<项目slug>/<sessionId>.jsonl，
+# 不是 ~/.workbuddy/traces/（trace 只有 span 时序，没有 model 也没有 token 用量）。
+#
+# 字段陷阱（2026-11-12 实测 27,113 条记录确认）：
+#   · rawUsage.cached_tokens 恒为 0，缓存命中必须取 prompt_tokens_details.cached_tokens；
+#     该字段缺失时回退 prompt_cache_hit_tokens（两者 99.1% 同值）。
+#   · 顶层 id 全局唯一，直接做主键即天然幂等，不必用「文件 + 行号」这种会随重写失效的键。
+#   · 日志里没有 duration / latency / ttft 任何耗时字段，只有 timestamp（毫秒）。
+#     所以耗时用「同会话相邻调用的时间差」估算，字段名刻意叫 step_ms 而不是 duration_ms。
+LLM_ROOT = os.environ.get("HWMON_LLM_ROOT") or os.path.join(
+    os.path.expanduser("~"), ".workbuddy", "projects")
+LLM_DB_PATH = os.environ.get("HWMON_LLM_DB") or os.path.join(STATIC_DIR, "llm_usage.db")
+LLM_SCAN_INTERVAL = 15.0     # 最小扫描间隔：连续刷新页面时不重复扫盘
+LLM_READ_CHUNK = 4 << 20     # 单文件单次最多读 4MB，首次建库也分片落地，不会一次吃满内存
+LLM_LINE_MAX = 64 << 20      # 单行硬上限 64MB：超长行（Base64/大段工具输出）丢弃并推进 offset
+LLM_STEP_MAX = 60_000        # 步进间隔只统计 60 秒内的连续步进（毫秒），排除人工停顿
+LLM_WINDOWS = ("today", "7d", "30d", "all")
+LLM_WINDOW_DAYS = {"today": 1, "7d": 7, "30d": 30}
+LLM_CACHE_TTL = 45.0         # 比后台刷新周期（20s）长：正常状态下请求永远命中预聚合结果
+
+_llm_lock = threading.Lock()        # 扫描互斥：多个 HTTP 线程同时触发只跑一次
+_llm_scan_state = {"ts": 0.0, "rows": 0, "err": None, "done": False}
+_llm_resp_cache = {}                # window -> (ts, payload)：纯读缓存，保证切换秒回
+
+
+def llm_device_name():
+    """与 /api/snapshot 的 device 保持一致口径：LAPTOP-01 -> laptop，DESKTOP-01 -> desktop。"""
+    host = (os.environ.get("HWMON_DEVICE") or socket.gethostname() or "").lower()
+    if "laptop" in host:
+        return "laptop"
+    if host.endswith("-pc") or "desktop" in host:
+        return "desktop"
+    return host or "unknown"
+
+
+def llm_db_connect():
+    conn = sqlite3.connect(LLM_DB_PATH, timeout=10)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=5000")
+    return conn
+
+
+# 聚合查询专用常驻连接：每次请求新建连接会让 SQLite 页缓存从零开始，
+# /all 首次查询要多花 ~110ms 把索引导回内存。常驻连接 + 20MB 页缓存后稳定在 ~40ms。
+_llm_read = {"conn": None, "lock": threading.Lock()}
+
+
+def llm_read_conn():
+    conn = _llm_read["conn"]
+    if conn is None:
+        conn = sqlite3.connect(LLM_DB_PATH, timeout=10, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA cache_size=-20000")
+        _llm_read["conn"] = conn
+    return conn
+
+
+def llm_db_init():
+    """独立库，不塞进 hwmon.db：那边的 7 天清理与高频采样 WAL 不该牵连用量账本。"""
+    conn = sqlite3.connect(LLM_DB_PATH, timeout=10)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS llm_calls (
+                call_id TEXT PRIMARY KEY,
+                ts INTEGER NOT NULL,
+                ts_ms INTEGER NOT NULL DEFAULT 0,
+                date_str TEXT NOT NULL,
+                hour_str TEXT NOT NULL,
+                model TEXT NOT NULL DEFAULT 'unknown',
+                session_id TEXT NOT NULL DEFAULT '',
+                prompt_tokens INTEGER NOT NULL DEFAULT 0,
+                cached_tokens INTEGER NOT NULL DEFAULT 0,
+                completion_tokens INTEGER NOT NULL DEFAULT 0,
+                reasoning_tokens INTEGER NOT NULL DEFAULT 0,
+                step_ms INTEGER
+            )
+        """)
+        # 旧库补 ts_ms 列（幂等）：毫秒精度用于算同会话步进间隔
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(llm_calls)")}
+        if "ts_ms" not in cols:
+            conn.execute("ALTER TABLE llm_calls ADD COLUMN ts_ms INTEGER NOT NULL DEFAULT 0")
+        # v6.1 迁移：早期入库的行没有 ts_ms，step_ms 也是按「600 秒」旧门限算的。
+        # 明细完全能从 JSONL 重建，直接清空让后台线程重扫一次（约 4 秒），比逐行猜更干净。
+        stale = conn.execute("SELECT COUNT(*) FROM llm_calls WHERE ts_ms=0").fetchone()
+        if stale and stale[0]:
+            conn.execute("DELETE FROM llm_calls")
+            conn.execute("DELETE FROM llm_file_state")
+            conn.commit()
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_ts ON llm_calls(ts)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_model ON llm_calls(model)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_date ON llm_calls(date_str)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_session ON llm_calls(session_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_sess_ts"
+                     " ON llm_calls(session_id, ts_ms)")
+        # 覆盖索引：聚合查询只走索引不回表，/all 窗口三类聚合从 ~49ms 降到 ~36ms
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_llm_agg ON llm_calls("
+            "ts, model, date_str, session_id, prompt_tokens, cached_tokens,"
+            " completion_tokens, reasoning_tokens, step_ms)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS llm_sessions (
+                session_id TEXT PRIMARY KEY,
+                title TEXT NOT NULL DEFAULT '',
+                cwd TEXT NOT NULL DEFAULT '',
+                last_ts INTEGER
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS llm_file_state (
+                path TEXT PRIMARY KEY,
+                mtime REAL NOT NULL DEFAULT 0,
+                size INTEGER NOT NULL DEFAULT 0,
+                byte_offset INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _llm_iter_files():
+    for dirpath, _dirnames, names in os.walk(LLM_ROOT):
+        for name in names:
+            if name.endswith(".jsonl"):
+                yield os.path.join(dirpath, name)
+
+
+def _llm_prev_ts(conn, known, session_id):
+    """同会话上一次调用的**毫秒**时间戳；扫描期间缓存，避免每条都查库。
+
+    必须用毫秒：同一秒内的连续步进（例如两三次快速工具调用）如果先截断到秒，
+    差值恒为 0 会被当成异常丢弃，TPS 分母就只剩慢请求了。
+    """
+    if session_id in known:
+        return known[session_id]
+    last = None
+    try:
+        row = conn.execute(
+            "SELECT MAX(ts_ms) FROM llm_calls WHERE session_id=? AND ts_ms>0",
+            (session_id,)).fetchone()
+        if row and row[0]:
+            last = int(row[0])
+        else:
+            row = conn.execute("SELECT MAX(ts) FROM llm_calls WHERE session_id=?",
+                               (session_id,)).fetchone()
+            last = int(row[0]) * 1000 if row and row[0] else None
+    except Exception:
+        last = None
+    known[session_id] = last
+    return last
+
+
+def _llm_upsert_session(conn, sid, title, cwd, last_ts):
+    """会话标题来自同文件的 ai-title 行；后到的标题覆盖旧的，空的绝不覆盖。"""
+    row = conn.execute("SELECT title, cwd, last_ts FROM llm_sessions WHERE session_id=?",
+                       (sid,)).fetchone()
+    if row is None:
+        conn.execute("INSERT INTO llm_sessions (session_id, title, cwd, last_ts) VALUES (?,?,?,?)",
+                     (sid, title or "", cwd or "", last_ts))
+        return
+    merged_title = title or row["title"] or ""
+    merged_cwd = cwd or row["cwd"] or ""
+    merged_ts = max([v for v in (row["last_ts"], last_ts) if v] or [None]) if (
+        row["last_ts"] or last_ts) else None
+    conn.execute("UPDATE llm_sessions SET title=?, cwd=?, last_ts=? WHERE session_id=?",
+                 (merged_title, merged_cwd, merged_ts, sid))
+
+
+def _llm_handle_line(conn, raw, rows, sessions, known):
+    """一行日志：要么是会话标题，要么是带 usage 的模型调用；其余直接丢弃。"""
+    try:
+        text = raw.decode("utf-8", "replace")
+    except Exception:
+        return
+    if '"aiTitle"' in text:
+        try:
+            d = json.loads(text)
+        except Exception:
+            return
+        title = (d.get("aiTitle") or "").strip()
+        sid = d.get("sessionId") or ""
+        if sid and title:
+            sessions.append((sid, title[:120], d.get("cwd") or "", None))
+        return
+    if '"rawUsage"' not in text:
+        return
+    try:
+        d = json.loads(text)
+        pd = d.get("providerData") or {}
+        ru = pd.get("rawUsage")
+        if not isinstance(ru, dict):
+            return
+        call_id = d.get("id") or ""
+        ts_ms = d.get("timestamp") or 0
+        if not call_id or not ts_ms:
+            return
+        ts = int(ts_ms / 1000)
+        local = dt.datetime.fromtimestamp(ts)
+        prompt = int(ru.get("prompt_tokens") or 0)
+        details = ru.get("prompt_tokens_details") or {}
+        cached = int(details.get("cached_tokens") or 0)
+        if not cached:
+            cached = int(ru.get("prompt_cache_hit_tokens") or 0)
+        completion = int(ru.get("completion_tokens") or 0)
+        cdetail = ru.get("completion_tokens_details") or {}
+        reasoning = int(cdetail.get("reasoning_tokens") or 0)
+        if not reasoning:
+            reasoning = int(ru.get("completion_thinking_tokens") or 0)
+        sid = d.get("sessionId") or ""
+        step = None
+        last_ms = _llm_prev_ts(conn, known, sid) if sid else None
+        if last_ms and 0 < ts_ms - last_ms <= LLM_STEP_MAX:
+            step = ts_ms - last_ms          # 毫秒级差，60 秒内才算一次「连续步进」
+        if sid:
+            known[sid] = max(ts_ms, last_ms or 0)
+        rows.append((
+            call_id, ts, ts_ms, local.strftime("%Y-%m-%d"), local.strftime("%Y-%m-%d %H:00"),
+            (pd.get("model") or pd.get("requestModelName") or "unknown"), sid,
+            prompt, cached, completion, reasoning, step,
+        ))
+    except Exception:
+        # 转义损坏 / 截断的半行 / 字段类型异常：跳过这一行，绝不让扫描器抛出去
+        return
+
+
+def _llm_read_file(conn, path, offset, known):
+    """从 offset 处读新增行，返回 (明细行, 会话行, 新 offset)。
+
+    用 readline 逐行读，而不是「一次读 4MB 再找最后一个换行」：
+    旧写法遇到单行超过 4MB（大段工具输出 / Base64）时 rfind 返回 -1 直接 break，
+    byte_offset 会永久卡死在那一行，之后所有新增数据全部漏统计。
+    现在只有三种结局——完整行消费掉、末尾半行留到下次、超长行丢弃并推进到下个换行，
+    offset 永远单调前进。
+    """
+    rows, sessions = [], []
+    consumed = offset
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(offset)
+            while True:
+                start = fh.tell()
+                line = fh.readline(LLM_LINE_MAX + 1)
+                if not line:
+                    break
+                if line.endswith(b"\n"):
+                    consumed = fh.tell()
+                    _llm_handle_line(conn, line.rstrip(b"\r\n"), rows, sessions, known)
+                    continue
+                if len(line) > LLM_LINE_MAX:
+                    # 超长行：丢掉这一行，继续读到下一个换行，保证 offset 前进且内存有界
+                    while True:
+                        more = fh.readline(LLM_READ_CHUNK)
+                        if not more or more.endswith(b"\n"):
+                            break
+                    consumed = fh.tell()
+                    continue
+                # 既没换行又没超限：文件正在追加，这半行留给下次扫描
+                fh.seek(start)
+                break
+    except OSError:
+        return [], [], offset
+    return rows, sessions, consumed
+
+
+def _llm_scan_locked():
+    conn = llm_db_connect()
+    added = 0
+    known = {}
+    try:
+        states = {}
+        for row in conn.execute("SELECT path, mtime, size, byte_offset FROM llm_file_state"):
+            states[row["path"]] = (row["mtime"], row["size"], row["byte_offset"])
+        for seq, path in enumerate(_llm_iter_files()):
+            # 每 120 个文件让出 2ms：不然一轮扫盘（632 个 stat + 解析）会长时间占着 GIL，
+            # 同一进程里的 HTTP 线程被硬生生拖慢 ~100ms，表现为接口偶发尖峰。
+            if seq and seq % 120 == 0:
+                time.sleep(0.002)
+            try:
+                st = os.stat(path)
+            except OSError:
+                continue
+            mtime, size, offset = states.get(path, (0.0, -1, 0))
+            if size == st.st_size and abs(mtime - st.st_mtime) < 0.001:
+                continue
+            if st.st_size < offset:
+                offset = 0        # 文件被截断或重写：从头再来，主键保证不会重复计数
+            rows, sessions, new_offset = _llm_read_file(conn, path, offset, known)
+            if rows:
+                conn.executemany(
+                    "INSERT OR IGNORE INTO llm_calls (call_id, ts, ts_ms, date_str, hour_str,"
+                    " model, session_id, prompt_tokens, cached_tokens, completion_tokens,"
+                    " reasoning_tokens, step_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+                added += len(rows)
+            for sid, title, cwd, last_ts in sessions:
+                _llm_upsert_session(conn, sid, title, cwd, last_ts)
+            conn.execute(
+                "INSERT OR REPLACE INTO llm_file_state (path, mtime, size, byte_offset)"
+                " VALUES (?,?,?,?)", (path, st.st_mtime, st.st_size, new_offset))
+            conn.commit()
+    finally:
+        conn.close()
+    return added
+
+
+def llm_scan(force=False, nonblock=False):
+    """轻量增量扫描（默认 15 秒防抖）。任何异常都吞掉，绝不影响 agent 主服务。
+
+    nonblock=True 时拿不到锁就直接返回：首屏请求不陪 3 秒冷扫描一起等，
+    用上一次的结果（或 warming 标记）先出页面。
+    """
+    now = time.time()
+    if nonblock:
+        if not _llm_lock.acquire(blocking=False):
+            return 0
+    else:
+        _llm_lock.acquire()
+    try:
+        if not force and now - _llm_scan_state["ts"] < LLM_SCAN_INTERVAL:
+            return 0
+        try:
+            added = _llm_scan_locked()
+            _llm_scan_state["rows"] = added
+            _llm_scan_state["err"] = None
+            _llm_scan_state["done"] = True
+        except Exception as e:
+            added = 0
+            _llm_scan_state["err"] = str(e)[:160]
+        _llm_scan_state["ts"] = time.time()
+        if added:
+            _llm_resp_cache.clear()
+        return added
+    finally:
+        _llm_lock.release()
+
+
+def llm_poller():
+    """后台索引线程：启动即建库并全量补一次（458MB 约 2~3 秒），之后每 20 秒扫新增。
+
+    扫完顺手把四个窗口的聚合结果预算好（预聚合）。这样请求路径只剩一次字典查找：
+    实测在运行中的 agent 里现场聚合要 90~110ms（读线程与扫描线程争 GIL + WAL），
+    预算后降到 2~3ms，且旧数据不会因为慢查询而闪白。
+    """
+    try:
+        llm_db_init()
+    except Exception as e:
+        print("llm_usage 数据库初始化失败: %s" % e)
+        return
+    last_hour = None
+    while True:
+        added = 0
+        try:
+            added = llm_scan(force=True)
+        except Exception as e:
+            print("llm_usage 扫描失败: %s" % str(e)[:120])
+        hour_key = dt.datetime.now().strftime("%Y-%m-%d %H")
+        # 空闲时（没有新记录、也没跨小时）不重跑 4 轮聚合：数据没变就不必重算，
+        # 只给缓存续期，避免 45 秒 TTL 到期后由请求线程去跑 ~100ms 的 SQL。
+        if added or last_hour != hour_key or not _llm_resp_cache:
+            for window in LLM_WINDOWS:
+                try:
+                    _llm_resp_cache.pop(window, None)   # 强制重算，别让后台刷新被 TTL 挡住
+                    llm_summary(window)
+                except Exception as e:
+                    print("llm_usage 预聚合失败 %s: %s" % (window, str(e)[:120]))
+            last_hour = hour_key
+        else:
+            now = time.time()
+            for window in list(_llm_resp_cache.keys()):
+                _llm_resp_cache[window] = (now, _llm_resp_cache[window][1])
+        time.sleep(20)
+
+
+def _llm_window_bounds(window):
+    """返回 (start_ts, end_ts)。全部按本地自然日对齐，两台机器分桶后才能逐桶相加。"""
+    end = int(time.time())
+    if window == "all":
+        return 0, end
+    days = LLM_WINDOW_DAYS.get(window, 1)
+    midnight = dt.datetime.combine(dt.datetime.now().date(), dt.time.min)
+    start = midnight - dt.timedelta(days=days - 1)
+    return int(start.timestamp()), end
+
+
+def _llm_rate(part, whole):
+    return round(part * 100.0 / whole, 2) if whole else 0.0
+
+
+def _llm_tps(completion, step_sum_ms):
+    return round(completion / (step_sum_ms / 1000.0), 1) if step_sum_ms else None
+
+
+def llm_summary(window="all"):
+    """GET /api/llm/summary 的数据体。first 请求会触发一次增量扫描。"""
+    if window not in LLM_WINDOWS:
+        raise ValueError("window=%s" % window)
+    hit = _llm_resp_cache.get(window)
+    if hit and time.time() - hit[0] < LLM_CACHE_TTL:
+        return hit[1]
+
+    # 扫描只在后台线程跑：请求路径上扫盘（632 个文件 stat + 首批解析）会让
+    # /all 首次请求从 35ms 抖到 480ms。只有冷启动尚未索引完时才引导一次（不阻塞）。
+    if not _llm_scan_state["done"]:
+        llm_scan(nonblock=True)
+    start, end = _llm_window_bounds(window)
+    build_t0 = time.time()
+    _llm_read["lock"].acquire()
+    try:
+        conn = llm_read_conn()
+        # today 按小时分桶，其余按天；bucket 用带日期的完整串，方便路由器逐桶对齐合并
+        key = "hour_str" if window == "today" else "date_str"
+        buckets = conn.execute(
+            "SELECT %s b, COUNT(*) c, SUM(prompt_tokens) p, SUM(cached_tokens) ca,"
+            " SUM(completion_tokens) co, SUM(reasoning_tokens) re,"
+            " SUM(COALESCE(step_ms,0)) st_sum, COUNT(step_ms) st_cnt"
+            " FROM llm_calls WHERE ts>=? AND ts<=? GROUP BY b ORDER BY b" % key,
+            (start, end)).fetchall()
+        # KPI 直接对分桶求和：保证「四宫格口径」与「趋势图口径」永远一致，也少扫一遍全表
+        total_calls = sum(r["c"] for r in buckets)
+        prompt_sum = sum(r["p"] or 0 for r in buckets)
+        cached_sum = sum(r["ca"] or 0 for r in buckets)
+        completion_sum = sum(r["co"] or 0 for r in buckets)
+        reasoning_sum = sum(r["re"] or 0 for r in buckets)
+        step_sum = sum(r["st_sum"] or 0 for r in buckets)
+        step_cnt = sum(r["st_cnt"] or 0 for r in buckets)
+        today_str = dt.date.today().isoformat()
+        today_calls = conn.execute("SELECT COUNT(*) FROM llm_calls WHERE date_str=?",
+                                   (today_str,)).fetchone()[0]
+        by_model = []
+        for row in conn.execute(
+                "SELECT model, COUNT(*) calls, SUM(prompt_tokens) p, SUM(cached_tokens) ca,"
+                " SUM(completion_tokens) co, SUM(reasoning_tokens) re,"
+                " AVG(step_ms) st, SUM(step_ms) st_sum"
+                " FROM llm_calls WHERE ts>=? AND ts<=? GROUP BY model"
+                " ORDER BY calls DESC, p DESC", (start, end)):
+            by_model.append({
+                "model": row["model"] or "unknown",
+                "calls": row["calls"],
+                "prompt_tokens": row["p"] or 0,
+                "cached_tokens": row["ca"] or 0,
+                "cache_hit_rate": _llm_rate(row["ca"] or 0, row["p"] or 0),
+                "completion_tokens": row["co"] or 0,
+                "reasoning_tokens": row["re"] or 0,
+                "avg_step_ms": int(row["st"] or 0),
+                "avg_tps": _llm_tps(row["co"] or 0, row["st_sum"] or 0),
+            })
+        timeline = [{
+            "bucket": row["b"],
+            "calls": row["c"],
+            "prompt_tokens": row["p"] or 0,
+            "cached_tokens": row["ca"] or 0,
+            "completion_tokens": row["co"] or 0,
+        } for row in buckets]
+        tops = []
+        for row in conn.execute(
+                "SELECT session_id, COUNT(*) calls, SUM(prompt_tokens) p, SUM(cached_tokens) ca,"
+                " SUM(completion_tokens) co, MAX(ts) last_ts"
+                " FROM llm_calls WHERE ts>=? AND ts<=? AND session_id<>''"
+                " GROUP BY session_id ORDER BY p DESC LIMIT 10", (start, end)):
+            tops.append(row)
+        titles = {}
+        ids = [r["session_id"] for r in tops]
+        if ids:
+            marks = ",".join("?" for _ in ids)
+            for row in conn.execute("SELECT session_id, title FROM llm_sessions"
+                                    " WHERE session_id IN (%s)" % marks, ids):
+                titles[row["session_id"]] = row["title"] or ""
+        top_sessions = [{
+            "session_id": r["session_id"],
+            "title": (titles.get(r["session_id"]) or "").strip() or r["session_id"][:8],
+            "calls": r["calls"],
+            "prompt_tokens": r["p"] or 0,
+            "uncached_tokens": max(0, (r["p"] or 0) - (r["ca"] or 0)),
+            "completion_tokens": r["co"] or 0,
+            "last_active": dt.datetime.fromtimestamp(r["last_ts"]).strftime("%Y-%m-%d %H:%M"),
+        } for r in tops]
+        index = conn.execute(
+            "SELECT COUNT(*) files, COALESCE(SUM(byte_offset),0) bytes FROM llm_file_state"
+        ).fetchone()
+        span = conn.execute("SELECT MIN(ts) a, MAX(ts) b, COUNT(*) n FROM llm_calls").fetchone()
+    finally:
+        # 常驻连接不关闭：页缓存留着，下一次请求直接命中
+        _llm_read["lock"].release()
+
+    payload = {
+        "device": llm_device_name(),
+        "updated_at": int(time.time()),
+        "window": window,
+        # 让路由器能判断这份数据（尤其离线缓存）是不是已经跨天，避免把昨天的 today 算进今天
+        "today_date": dt.date.today().isoformat(),
+        "kpi": {
+            "total_calls": total_calls,
+            "today_calls": today_calls,
+            "prompt_tokens": prompt_sum,
+            "cached_tokens": cached_sum,
+            "cache_hit_rate": _llm_rate(cached_sum, prompt_sum),
+            "uncached_tokens": max(0, prompt_sum - cached_sum),
+            "completion_tokens": completion_sum,
+            "reasoning_tokens": reasoning_sum,
+            "reasoning_ratio": _llm_rate(reasoning_sum, completion_sum),
+            # 不是真实延迟：日志无耗时字段，这里取「同会话相邻调用间隔」的均值，前端标注为步进耗时
+            "avg_step_ms": int(step_sum / step_cnt) if step_cnt else 0,
+            "avg_tps": _llm_tps(completion_sum, step_sum),
+        },
+        "by_model": by_model,
+        "timeline": timeline,
+        "top_sessions": top_sessions,
+        "index": {
+            "files": index["files"],
+            "indexed_bytes": index["bytes"],
+            "all_calls": span["n"] or 0,
+            "first_ts": span["a"],
+            "last_ts": span["b"],
+            "warmup": not _llm_scan_state["done"],
+            "build_ms": int((time.time() - build_t0) * 1000),
+            "last_scan": int(_llm_scan_state["ts"] or 0),
+            "last_scan_error": _llm_scan_state["err"],
+        },
+    }
+    _llm_resp_cache[window] = (time.time(), payload)
+    return payload
+
+
 # ---------------- 采集线程 ----------------
 
 def poller():
@@ -1166,7 +1695,7 @@ def trigger_wol():
         if prev is not None and now - _last_wol["ts"] < WOL_THROTTLE_SECONDS:
             return dict(prev, throttled=True)
         result = {"ok": False, "http_status": None, "error": None,
-                  "target": "DESKTOP-PC", "ts": now, "throttled": False}
+                  "target": "DESKTOP-01", "ts": now, "throttled": False}
         try:
             req = urllib.request.Request(
                 WOL_URL, headers={"User-Agent": "hwmon-tools/1.0"}
@@ -1245,7 +1774,470 @@ def maybe_backup_db():
             "kept": len(files[-DB_BACKUP_KEEP:])}
 
 
-# ---------------- HTTP ----------------
+# ---------------- 应用时长与进程资源遥测（ctypes only） ----------------
+# 不使用 psutil / pywin32，也不在轮询线程中启动任何外部进程。
+from ctypes import wintypes
+
+APP_POLL_INTERVAL = 5.0
+APP_COMMIT_INTERVAL = 30.0
+APP_DB_PATH = os.environ.get("HWMON_APP_DB", r"C:\hwsensor\app_usage.db")
+APP_WINDOWS = ("today", "7d", "30d", "all")
+TH32CS_SNAPPROCESS = 0x00000002
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+class _LASTINPUTINFO(ctypes.Structure):
+    _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+
+class _FILETIME(ctypes.Structure):
+    _fields_ = [("dwLowDateTime", ctypes.c_ulong), ("dwHighDateTime", ctypes.c_ulong)]
+
+class _PROCESSENTRY32W(ctypes.Structure):
+    _fields_ = [
+        ("dwSize", ctypes.c_ulong), ("cntUsage", ctypes.c_ulong),
+        ("th32ProcessID", ctypes.c_ulong), ("th32DefaultHeapID", ctypes.c_size_t),
+        ("th32ModuleID", ctypes.c_ulong), ("cntThreads", ctypes.c_ulong),
+        ("th32ParentProcessID", ctypes.c_ulong), ("pcPriClassBase", ctypes.c_long),
+        ("dwFlags", ctypes.c_ulong), ("szExeFile", ctypes.c_wchar * 260),
+    ]
+
+class _PROCESS_MEMORY_COUNTERS_EX(ctypes.Structure):
+    _fields_ = [
+        ("cb", ctypes.c_ulong), ("PageFaultCount", ctypes.c_ulong),
+        ("PeakWorkingSetSize", ctypes.c_size_t), ("WorkingSetSize", ctypes.c_size_t),
+        ("QuotaPeakPagedPoolUsage", ctypes.c_size_t), ("QuotaPagedPoolUsage", ctypes.c_size_t),
+        ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t), ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+        ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t),
+        ("PrivateUsage", ctypes.c_size_t),
+    ]
+
+_APP_CATEGORIES = {
+    "生产力与AI": {"workbuddy.exe", "code.exe", "cursor.exe", "windsurf.exe", "devenv.exe", "pycharm64.exe", "idea64.exe", "obsidian.exe", "notion.exe", "winword.exe", "excel.exe", "powerpnt.exe", "wps.exe", "windowsterminal.exe", "powershell.exe", "cmd.exe", "python.exe"},
+    "浏览器": {"chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "arc.exe", "browser.exe"},
+    "游戏与娱乐": {"steam.exe", "steamwebhelper.exe", "epicgameslauncher.exe", "potplayermini64.exe", "vlc.exe", "cloudmusic.exe", "qqmusic.exe"},
+    "社交与通讯": {"weixin.exe", "wechat.exe", "qq.exe", "telegram.exe", "discord.exe", "feishu.exe", "dingtalk.exe"},
+    "系统与服务": {"explorer.exe", "dwm.exe", "svchost.exe", "searchhost.exe", "easytier-core.exe", "hipstray.exe", "wsctrlsvc.exe", "librehardwaremonitor.exe", "gpu-z.exe", "pythonw.exe"},
+}
+_APP_STATE_LOCK = threading.Lock()
+_APP_STATE = {"updated_at": 0, "is_afk": True, "idle_sec": 0.0, "fg_app": "", "fg_category": "其他应用", "fg_title": "", "total_processes": 0, "total_ws_mb": 0, "total_commit_mb": 0, "top_live": [], "top_live_cpu": [], "rows": []}
+_APP_RESP_CACHE_LOCK = threading.Lock()
+_APP_RESP_CACHE = {}
+_APP_PREV_PROC = {}
+_APP_PREV_SYS = None
+_APP_LAST_COMMIT = 0.0
+
+
+def app_category(app_key):
+    for category, names in _APP_CATEGORIES.items():
+        if app_key in names:
+            return category
+    return "其他应用"
+
+
+def _filetime_value(value):
+    return (int(value.dwHighDateTime) << 32) | int(value.dwLowDateTime)
+
+
+def _configure_app_winapi():
+    """声明指针/句柄签名，避免 64 位 Python 截断 HANDLE。"""
+    k32, u32 = ctypes.windll.kernel32, ctypes.windll.user32
+    k32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    k32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    k32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(_PROCESSENTRY32W)]
+    k32.Process32FirstW.restype = wintypes.BOOL
+    k32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(_PROCESSENTRY32W)]
+    k32.Process32NextW.restype = wintypes.BOOL
+    k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    k32.OpenProcess.restype = wintypes.HANDLE
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    k32.CloseHandle.restype = wintypes.BOOL
+    k32.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(_FILETIME)] * 4
+    k32.GetProcessTimes.restype = wintypes.BOOL
+    k32.GetSystemTimes.argtypes = [ctypes.POINTER(_FILETIME)] * 3
+    k32.GetSystemTimes.restype = wintypes.BOOL
+    k32.GetTickCount.restype = wintypes.DWORD
+    u32.GetForegroundWindow.restype = wintypes.HWND
+    u32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    u32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    u32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    u32.GetWindowTextW.restype = ctypes.c_int
+    u32.GetLastInputInfo.argtypes = [ctypes.POINTER(_LASTINPUTINFO)]
+    u32.GetLastInputInfo.restype = wintypes.BOOL
+    fn = getattr(k32, "K32GetProcessMemoryInfo", None)
+    if fn:
+        fn.argtypes = [wintypes.HANDLE, ctypes.POINTER(_PROCESS_MEMORY_COUNTERS_EX), wintypes.DWORD]
+        fn.restype = wintypes.BOOL
+    else:
+        psapi = ctypes.windll.psapi
+        psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(_PROCESS_MEMORY_COUNTERS_EX), wintypes.DWORD]
+        psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+
+
+def app_db_connect():
+    conn = sqlite3.connect(APP_DB_PATH, timeout=5)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=3000")
+    return conn
+
+
+def app_db_init():
+    parent = os.path.dirname(os.path.abspath(APP_DB_PATH))
+    os.makedirs(parent, exist_ok=True)
+    conn = app_db_connect()
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("""CREATE TABLE IF NOT EXISTS app_daily_stats (
+            date_str TEXT NOT NULL, app_key TEXT NOT NULL, display_name TEXT NOT NULL,
+            category TEXT NOT NULL, fg_active_sec REAL NOT NULL DEFAULT 0,
+            fg_idle_sec REAL NOT NULL DEFAULT 0, bg_run_sec REAL NOT NULL DEFAULT 0,
+            bg_busy_sec REAL NOT NULL DEFAULT 0, cpu_pct_sum REAL NOT NULL DEFAULT 0,
+            cpu_peak_pct REAL NOT NULL DEFAULT 0, ws_mb_sum REAL NOT NULL DEFAULT 0,
+            ws_peak_mb REAL NOT NULL DEFAULT 0, commit_mb_sum REAL NOT NULL DEFAULT 0,
+            commit_peak_mb REAL NOT NULL DEFAULT 0, samples INTEGER NOT NULL DEFAULT 0,
+            max_procs INTEGER NOT NULL DEFAULT 0, last_ts INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY(date_str, app_key))""")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_app_daily_date ON app_daily_stats(date_str)")
+        conn.execute("""CREATE TABLE IF NOT EXISTS app_hourly_timeline (
+            hour_str TEXT PRIMARY KEY, date_str TEXT NOT NULL,
+            fg_active_sec REAL NOT NULL DEFAULT 0, afk_sec REAL NOT NULL DEFAULT 0,
+            cpu_sum REAL NOT NULL DEFAULT 0, ws_sum REAL NOT NULL DEFAULT 0,
+            commit_sum REAL NOT NULL DEFAULT 0, samples INTEGER NOT NULL DEFAULT 0)""")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _app_input_state():
+    lii = _LASTINPUTINFO()
+    lii.cbSize = ctypes.sizeof(_LASTINPUTINFO)
+    if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(lii)):
+        return 0.0, True
+    idle = ((ctypes.windll.kernel32.GetTickCount() - lii.dwTime) & 0xFFFFFFFF) / 1000.0
+    return idle, idle >= 180.0
+
+
+def _app_foreground():
+    u32 = ctypes.windll.user32
+    hwnd = u32.GetForegroundWindow()
+    pid = wintypes.DWORD(0)
+    title = ""
+    if hwnd:
+        u32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        buf = ctypes.create_unicode_buffer(512)
+        u32.GetWindowTextW(hwnd, buf, len(buf))
+        # 去除控制字符、路径式用户名片段，并限制长度，避免把完整敏感标题存入数据库。
+        title = re.sub(r"[\x00-\x1f\x7f]", " ", buf.value)
+        title = re.sub(r"(?i)[A-Z]:\\Users\\[^\\\s]+", r"[用户目录]", title)[:60]
+    return int(pid.value), title
+
+
+def _app_memory(handle):
+    counters = _PROCESS_MEMORY_COUNTERS_EX()
+    counters.cb = ctypes.sizeof(counters)
+    k32 = ctypes.windll.kernel32
+    fn = getattr(k32, "K32GetProcessMemoryInfo", None)
+    if fn is None:
+        fn = ctypes.windll.psapi.GetProcessMemoryInfo
+    if not fn(handle, ctypes.byref(counters), counters.cb):
+        return 0.0, 0.0
+    return counters.WorkingSetSize / (1024.0 ** 2), counters.PrivateUsage / (1024.0 ** 2)
+
+
+def app_sample_once():
+    """单次 Win32 枚举与归并；进程句柄在 finally 中逐个关闭。"""
+    global _APP_PREV_PROC, _APP_PREV_SYS
+    t0 = time.perf_counter()
+    k32 = ctypes.windll.kernel32
+    idle_ft, kernel_ft, user_ft = _FILETIME(), _FILETIME(), _FILETIME()
+    if not k32.GetSystemTimes(ctypes.byref(idle_ft), ctypes.byref(kernel_ft), ctypes.byref(user_ft)):
+        raise OSError("GetSystemTimes failed")
+    sys_total = _filetime_value(kernel_ft) + _filetime_value(user_ft)
+    delta_sys = max(0, sys_total - (_APP_PREV_SYS if _APP_PREV_SYS is not None else sys_total))
+    _APP_PREV_SYS = sys_total
+    idle_sec, is_afk = _app_input_state()
+    fg_pid, fg_title = _app_foreground()
+    snapshot = k32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    invalid = ctypes.c_void_p(-1).value
+    if not snapshot or ctypes.cast(snapshot, ctypes.c_void_p).value == invalid:
+        raise OSError("CreateToolhelp32Snapshot failed")
+    rows, current = [], {}
+    fg_exe = ""
+    try:
+        entry = _PROCESSENTRY32W()
+        entry.dwSize = ctypes.sizeof(_PROCESSENTRY32W)
+        ok = k32.Process32FirstW(snapshot, ctypes.byref(entry))
+        while ok:
+            pid = int(entry.th32ProcessID)
+            exe = entry.szExeFile or ""
+            if pid not in (0, 4) and exe:
+                if pid == fg_pid:
+                    fg_exe = exe
+                handle = k32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+                if handle:
+                    try:
+                        c, e, kt, ut = _FILETIME(), _FILETIME(), _FILETIME(), _FILETIME()
+                        if not k32.GetProcessTimes(handle, ctypes.byref(c), ctypes.byref(e), ctypes.byref(kt), ctypes.byref(ut)):
+                            ok = k32.Process32NextW(snapshot, ctypes.byref(entry))
+                            continue
+                        created = _filetime_value(c)
+                        proc_key = (pid, created)
+                        proc_total = _filetime_value(kt) + _filetime_value(ut)
+                        prev = _APP_PREV_PROC.get(proc_key)
+                        delta_proc = max(0, proc_total - prev) if prev is not None else 0
+                        cpu = min(100.0, max(0.0, delta_proc * 100.0 / delta_sys)) if delta_sys else 0.0
+                        ws_mb, commit_mb = _app_memory(handle)
+                        app_key = exe.lower()
+                        rows.append({"app_key": app_key, "display_name": exe, "category": app_category(app_key),
+                                     "pid": pid, "cpu_pct": cpu, "ws_mb": ws_mb, "commit_mb": commit_mb})
+                        current[proc_key] = proc_total
+                    finally:
+                        k32.CloseHandle(handle)
+            ok = k32.Process32NextW(snapshot, ctypes.byref(entry))
+    finally:
+        k32.CloseHandle(snapshot)
+    _APP_PREV_PROC = current
+    grouped = {}
+    for row in rows:
+        g = grouped.setdefault(row["app_key"], {"app": row["display_name"], "category": row["category"],
+            "procs": 0, "cpu_pct": 0.0, "ws_mb": 0.0, "commit_mb": 0.0, "is_fg": False, "pids": set()})
+        g["procs"] += 1; g["cpu_pct"] += row["cpu_pct"]
+        g["ws_mb"] += row["ws_mb"]; g["commit_mb"] += row["commit_mb"]
+        g["is_fg"] = g["is_fg"] or row["pid"] == fg_pid
+        g["pids"].add(row["pid"])
+    live = []
+    for g in grouped.values():
+        g.pop("pids", None)
+        for key in ("cpu_pct", "ws_mb", "commit_mb"):
+            g[key] = round(g[key], 2 if key != "cpu_pct" else 1)
+        live.append(g)
+    live.sort(key=lambda x: (x["commit_mb"], x["ws_mb"], x["cpu_pct"]), reverse=True)
+    fg = next((r for r in rows if r["pid"] == fg_pid), None)
+    if fg and fg["app_key"] in ("lockapp.exe", "logonui.exe"):
+        is_afk = True
+    state = {"updated_at": int(time.time()), "is_afk": bool(is_afk), "idle_sec": round(idle_sec, 1),
+             "fg_app": fg["display_name"] if fg and fg["app_key"] not in ("lockapp.exe", "logonui.exe") else "",
+             "fg_category": fg["category"] if fg else "其他应用", "fg_title": fg_title,
+             "total_processes": len(rows), "total_ws_mb": round(sum(r["ws_mb"] for r in rows),1),
+             "total_commit_mb": round(sum(r["commit_mb"] for r in rows),1),
+             "top_live": live[:10], "top_live_cpu": sorted(live,key=lambda x:x["cpu_pct"],reverse=True)[:10], "rows": rows,
+             "sample_ms": round((time.perf_counter() - t0) * 1000, 2)}
+    with _APP_STATE_LOCK:
+        _APP_STATE.update(state)
+    return state
+
+
+def _app_store_sample(conn, state, dt_sec):
+    now = int(time.time())
+    local = dt.datetime.fromtimestamp(now)
+    date_str, hour_str = local.strftime("%Y-%m-%d"), local.strftime("%Y-%m-%d %H:00")
+    rows = state.get("rows") or []
+    grouped = {}
+    foreground = (state.get("fg_app") or "").lower()
+    locked = foreground in ("lockapp.exe", "logonui.exe")
+    for row in rows:
+        key = row["app_key"]
+        g = grouped.setdefault(key, {"display_name": row["display_name"], "category": row["category"],
+            "procs": 0, "cpu_pct": 0.0, "ws_mb": 0.0, "commit_mb": 0.0})
+        g["procs"] += 1
+        g["cpu_pct"] += row["cpu_pct"]
+        g["ws_mb"] += row["ws_mb"]
+        g["commit_mb"] += row["commit_mb"]
+    for key, g in grouped.items():
+        is_fg = key == foreground and not locked
+        fg_active = dt_sec if is_fg and not state["is_afk"] else 0.0
+        fg_idle = dt_sec if is_fg and state["is_afk"] else 0.0
+        bg_run = 0.0 if is_fg else dt_sec
+        bg_busy = dt_sec if not is_fg and g["cpu_pct"] >= 1.0 else 0.0
+        conn.execute("""INSERT INTO app_daily_stats
+            (date_str,app_key,display_name,category,fg_active_sec,fg_idle_sec,bg_run_sec,bg_busy_sec,
+             cpu_pct_sum,cpu_peak_pct,ws_mb_sum,ws_peak_mb,commit_mb_sum,commit_peak_mb,samples,max_procs,last_ts)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(date_str,app_key) DO UPDATE SET
+             display_name=excluded.display_name,category=excluded.category,
+             fg_active_sec=fg_active_sec+excluded.fg_active_sec,
+             fg_idle_sec=fg_idle_sec+excluded.fg_idle_sec,bg_run_sec=bg_run_sec+excluded.bg_run_sec,
+             bg_busy_sec=bg_busy_sec+excluded.bg_busy_sec,cpu_pct_sum=cpu_pct_sum+excluded.cpu_pct_sum,
+             cpu_peak_pct=MAX(cpu_peak_pct,excluded.cpu_peak_pct),ws_mb_sum=ws_mb_sum+excluded.ws_mb_sum,
+             ws_peak_mb=MAX(ws_peak_mb,excluded.ws_peak_mb),commit_mb_sum=commit_mb_sum+excluded.commit_mb_sum,
+             commit_peak_mb=MAX(commit_peak_mb,excluded.commit_peak_mb),samples=samples+1,
+             max_procs=MAX(max_procs,excluded.max_procs),last_ts=excluded.last_ts""",
+            (date_str,key,g["display_name"],g["category"],fg_active,fg_idle,bg_run,bg_busy,
+             g["cpu_pct"],g["cpu_pct"],g["ws_mb"],g["ws_mb"],g["commit_mb"],g["commit_mb"],
+             1,g["procs"],now))
+    total_cpu = sum(g["cpu_pct"] for g in grouped.values())
+    total_ws = sum(g["ws_mb"] for g in grouped.values())
+    total_commit = sum(g["commit_mb"] for g in grouped.values())
+    fg_sec = dt_sec if foreground and not locked and not state["is_afk"] else 0.0
+    afk_sec = dt_sec if state["is_afk"] else 0.0
+    conn.execute("""INSERT INTO app_hourly_timeline
+        (hour_str,date_str,fg_active_sec,afk_sec,cpu_sum,ws_sum,commit_sum,samples)
+        VALUES (?,?,?,?,?,?,?,1) ON CONFLICT(hour_str) DO UPDATE SET
+        fg_active_sec=fg_active_sec+excluded.fg_active_sec,afk_sec=afk_sec+excluded.afk_sec,
+        cpu_sum=cpu_sum+excluded.cpu_sum,ws_sum=ws_sum+excluded.ws_sum,
+        commit_sum=commit_sum+excluded.commit_sum,samples=samples+1""",
+        (hour_str,date_str,fg_sec,afk_sec,total_cpu,total_ws,total_commit))
+
+
+def _app_window_dates(window):
+    today = dt.date.today()
+    if window == "today":
+        return today.isoformat(), today.isoformat()
+    if window in ("7d", "30d"):
+        days = 7 if window == "7d" else 30
+        return (today - dt.timedelta(days=days - 1)).isoformat(), today.isoformat()
+    if window == "all":
+        return "0000-01-01", today.isoformat()
+    raise ValueError("window 仅支持 today、7d、30d、all")
+
+
+def _app_build_summary(window="today", include_realtime=True):
+    if window not in APP_WINDOWS:
+        raise ValueError("window 仅支持 today、7d、30d、all")
+    start_date, end_date = _app_window_dates(window)
+    conn = app_db_connect()
+    try:
+        records = [dict(r) for r in conn.execute(
+            "SELECT app_key,display_name,category,SUM(fg_active_sec) fg_active_sec,"
+            "SUM(fg_idle_sec) fg_idle_sec,SUM(bg_run_sec) bg_run_sec,SUM(bg_busy_sec) bg_busy_sec,"
+            "SUM(cpu_pct_sum) cpu_pct_sum,MAX(cpu_peak_pct) cpu_peak_pct,"
+            "SUM(ws_mb_sum) ws_mb_sum,MAX(ws_peak_mb) ws_peak_mb,"
+            "SUM(commit_mb_sum) commit_mb_sum,MAX(commit_peak_mb) commit_peak_mb,"
+            "SUM(samples) samples,MAX(max_procs) max_procs,MAX(last_ts) last_ts "
+            "FROM app_daily_stats WHERE date_str>=? AND date_str<=? GROUP BY app_key ORDER BY fg_active_sec DESC",
+            (start_date,end_date))]
+        for r in records:
+            samples=max(1,int(r["samples"] or 0))
+            r["avg_cpu_pct"]=round((r["cpu_pct_sum"] or 0)/samples,2)
+            r["avg_ws_mb"]=round((r["ws_mb_sum"] or 0)/samples,1)
+            r["avg_commit_mb"]=round((r["commit_mb_sum"] or 0)/samples,1)
+            r["peak_cpu_pct"]=round(r["cpu_peak_pct"] or 0,1)
+            r["peak_ws_mb"]=round(r["ws_peak_mb"] or 0,1)
+            r["peak_commit_mb"]=round(r["commit_peak_mb"] or 0,1)
+            for key in ("fg_active_sec","fg_idle_sec","bg_run_sec","bg_busy_sec"):
+                r[key]=round(r[key] or 0,1)
+        fg_active=sum(r["fg_active_sec"] for r in records)
+        afk_sec=sum(r["fg_idle_sec"] for r in records)
+        prod_sec=sum(r["fg_active_sec"] for r in records if r["category"]=="生产力与AI")
+        focus=round(fg_active*100/(fg_active+afk_sec),1) if fg_active+afk_sec else 0.0
+        productivity=round(prod_sec*100/fg_active,1) if fg_active else 0.0
+        category_map={}
+        for r in records:
+            c=category_map.setdefault(r["category"],{"category":r["category"],"fg_active_sec":0.0,"commit_sum":0.0,"samples":0})
+            c["fg_active_sec"]+=r["fg_active_sec"]
+            c["commit_sum"]+=(r["commit_mb_sum"] or 0)
+            c["samples"]+=(r["samples"] or 0)
+        by_category=[]
+        for c in category_map.values():
+            c["share_pct"]=round(c["fg_active_sec"]*100/fg_active,1) if fg_active else 0.0
+            c["avg_commit_mb"]=round(c["commit_sum"]/max(1,c["samples"]),1)
+            c["fg_active_sec"]=round(c["fg_active_sec"],1)
+            c.pop("commit_sum",None);c.pop("samples",None)
+            by_category.append(c)
+        by_category.sort(key=lambda x:x["fg_active_sec"],reverse=True)
+        if window=="today":
+            tr=list(conn.execute("SELECT hour_str bucket,SUM(fg_active_sec) fg_active_sec,SUM(afk_sec) afk_sec,"
+                "SUM(cpu_sum) cpu_sum,SUM(ws_sum) ws_sum,SUM(commit_sum) commit_sum,SUM(samples) samples "
+                "FROM app_hourly_timeline WHERE date_str=? GROUP BY hour_str ORDER BY hour_str",(end_date,)))
+        else:
+            tr=list(conn.execute("SELECT date_str bucket,SUM(fg_active_sec) fg_active_sec,SUM(afk_sec) afk_sec,"
+                "SUM(cpu_sum) cpu_sum,SUM(ws_sum) ws_sum,SUM(commit_sum) commit_sum,SUM(samples) samples "
+                "FROM app_hourly_timeline WHERE date_str>=? AND date_str<=? GROUP BY date_str ORDER BY date_str",
+                (start_date,end_date)))
+        timeline=[]
+        for r in tr:
+            n=max(1,int(r["samples"] or 0))
+            timeline.append({"bucket":r["bucket"],"fg_active_sec":round(r["fg_active_sec"] or 0,1),
+                "afk_sec":round(r["afk_sec"] or 0,1),"avg_cpu_pct":round((r["cpu_sum"] or 0)/n,2),
+                "avg_ws_mb":round((r["ws_sum"] or 0)/n,1),"avg_commit_mb":round((r["commit_sum"] or 0)/n,1)})
+        today_rows=list(conn.execute("SELECT SUM(fg_active_sec) a,SUM(fg_idle_sec) i FROM app_daily_stats WHERE date_str=?",(dt.date.today().isoformat(),)))
+        today_active=float(today_rows[0]["a"] or 0);today_afk=float(today_rows[0]["i"] or 0)
+        peak=max(records,key=lambda x:x["peak_commit_mb"],default=None)
+        if include_realtime:
+            realtime, updated = app_realtime_snapshot()
+        else:
+            realtime, updated = {}, int(time.time())
+        for r in records:
+            r.pop("app_key",None);r.pop("cpu_pct_sum",None);r.pop("cpu_peak_pct",None)
+            r.pop("ws_mb_sum",None);r.pop("ws_peak_mb",None);r.pop("commit_mb_sum",None);r.pop("commit_peak_mb",None)
+            r.pop("last_ts",None)
+        return {"device":llm_device_name(),"updated_at":updated,"today_date":dt.date.today().isoformat(),"window":window,
+            "realtime":realtime,"kpi":{"fg_active_sec":round(fg_active,1),"today_fg_active_sec":round(today_active,1),
+            "afk_sec":round(afk_sec,1),"focus_rate":focus,"productivity_sec":round(prod_sec,1),
+            "productivity_rate":productivity,"active_apps_count":sum(1 for r in records if r["fg_active_sec"]>0),
+            "peak_commit_app":peak["display_name"] if peak else "--","peak_commit_mb":peak["peak_commit_mb"] if peak else 0,
+            "today_afk_sec":round(today_afk,1)},"by_category":by_category,"by_app":records,"timeline":timeline}
+    finally:
+        conn.close()
+
+
+def app_realtime_snapshot():
+    with _APP_STATE_LOCK:
+        live = dict(_APP_STATE)
+    realtime = {k:live.get(k) for k in ("is_afk","idle_sec","fg_app","fg_category","fg_title",
+        "total_processes","total_ws_mb","total_commit_mb","top_live","top_live_cpu")}
+    return realtime, live.get("updated_at") or int(time.time())
+
+
+def app_refresh_response_cache():
+    """采样器线程预生成聚合结果；请求路径仅拼装实时快照和缓存统计。"""
+    prepared = {}
+    for window in APP_WINDOWS:
+        try:
+            prepared[window] = _app_build_summary(window, include_realtime=False)
+        except Exception as e:
+            print("应用摘要预聚合失败 %s: %s" % (window,str(e)[:120]))
+    if prepared:
+        with _APP_RESP_CACHE_LOCK:
+            _APP_RESP_CACHE.update(prepared)
+
+
+def app_summary(window="today"):
+    if window not in APP_WINDOWS:
+        raise ValueError("window 仅支持 today、7d、30d、all")
+    with _APP_RESP_CACHE_LOCK:
+        cached = _APP_RESP_CACHE.get(window)
+    if cached is None:
+        # 冷启动或数据库尚未初始化时采用一次性回退，后续由 app_poller 预热。
+        return _app_build_summary(window, include_realtime=True)
+    out = dict(cached)
+    out["realtime"], out["updated_at"] = app_realtime_snapshot()
+    out["today_date"] = dt.date.today().isoformat()
+    return out
+
+
+def app_poller():
+
+    """独立后台守护采样线程，SQLite 约每 30 秒提交一次。"""
+    global _APP_LAST_COMMIT
+    try:
+        _configure_app_winapi()
+        app_db_init()
+        conn=app_db_connect()
+    except Exception as e:
+        print("应用遥测初始化失败: %s" % str(e)[:160])
+        return
+    last_mono=time.monotonic();_APP_LAST_COMMIT=last_mono
+    try:
+        # 启动先预热，避免首个 API 请求现场扫描 SQLite。
+        conn.commit()
+        app_refresh_response_cache()
+    except Exception as e:
+        print("应用摘要预热失败: %s" % str(e)[:120])
+    while True:
+        started=time.monotonic()
+        try:
+            state=app_sample_once()
+            now_mono=time.monotonic();dt_sec=max(0.0,min(10.0,now_mono-last_mono));last_mono=now_mono
+            _app_store_sample(conn,state,dt_sec)
+            if now_mono-_APP_LAST_COMMIT>=APP_COMMIT_INTERVAL:
+                conn.commit();_APP_LAST_COMMIT=now_mono
+                app_refresh_response_cache()
+        except Exception as e:
+            try: conn.rollback()
+            except Exception: pass
+            print("应用遥测采样失败: %s" % str(e)[:120])
+        time.sleep(max(0.05,APP_POLL_INTERVAL-(time.monotonic()-started)))
+
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "hwmon/0.6"
@@ -1279,6 +2271,14 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(204)
             self.end_headers()
             return
+
+        # 全站公共导航组件（Banner）：CSS / JS 各一份，所有页面共享。
+        # 走 _MIME 白名单，避免把目录下任意文件暴露成静态资源。
+        if path in ("/common-nav.css", "/common-nav.js"):
+            ctype = self._MIME.get(os.path.splitext(path)[1].lower())
+            if ctype:
+                self._serve_file(path.lstrip("/"), ctype)
+                return
 
         if path == "/api/snapshot":
             with _lock:
@@ -1349,12 +2349,58 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": str(e)[:160]}, 503)
             return
 
+        if path == "/api/llm/summary":
+            window = (query.get("window") or ["all"])[0]
+            try:
+                self._json(llm_summary(window))
+            except ValueError as e:
+                self._json({"error": "window 仅支持 today、7d、30d、all", "detail": str(e)[:160]}, 400)
+            except Exception as e:
+                self._json({"error": str(e)[:160]}, 503)
+            return
+
+        if path == "/api/app/summary":
+            window = (query.get("window") or ["today"])[0]
+            try:
+                self._json(app_summary(window))
+            except ValueError as e:
+                self._json({"error": "window 仅支持 today、7d、30d、all", "detail": str(e)[:160]}, 400)
+            except Exception as e:
+                self._json({"error": str(e)[:160]}, 503)
+            return
+
         if path == "/api/easytier":
             self._json(easytier_status())
             return
 
+        if path in ("/ltx", "/ltx/"):
+            # 镜像副本已迁到路由器；本机未配置目录时直接 302 过去
+            if not LTX_DIR or not os.path.isdir(LTX_DIR):
+                self.send_response(302)
+                self.send_header("Location", "http://192.0.2.1:8089/ltx/")
+                self.end_headers()
+                return
+            self._serve_static("index.html")
+            return
+
+        if path.startswith("/ltx/"):
+            if not LTX_DIR or not os.path.isdir(LTX_DIR):
+                self.send_error(404)
+                return
+            self._serve_static(path[5:])
+            return
+
         if path == "/tools":
             self._serve_file("tools.html", "text/html; charset=utf-8")
+            return
+
+        if path in ("/llm", "/llm.html"):
+            # 直连本机时的模型监控页（单机视角）；路由器上的同名页面走 /api/llm/aggregate
+            self._serve_file("llm.html", "text/html; charset=utf-8")
+            return
+
+        if path in ("/app", "/app.html"):
+            self._serve_file("app.html", "text/html; charset=utf-8")
             return
 
         if path in ("/", "/index.html"):
@@ -1402,6 +2448,46 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    _MIME = {
+        ".html": "text/html; charset=utf-8",
+        ".js": "application/javascript; charset=utf-8",
+        ".css": "text/css; charset=utf-8",
+        ".json": "application/json; charset=utf-8",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".svg": "image/svg+xml",
+    }
+
+    def _serve_static(self, rel):
+        """从 LTX_DIR 提供静态文件，带目录穿越防护与图片长缓存。"""
+        rel = urllib.parse.unquote(rel or "").replace("\\", "/").lstrip("/")
+        base = os.path.realpath(LTX_DIR)
+        fp = os.path.realpath(os.path.join(base, rel))
+        if not (fp == base or fp.startswith(base + os.sep)) or not os.path.isfile(fp):
+            self.send_error(404)
+            return
+        ext = os.path.splitext(fp)[1].lower()
+        ctype = self._MIME.get(ext, "application/octet-stream")
+        try:
+            with open(fp, "rb") as f:
+                body = f.read()
+        except OSError:
+            self.send_error(404)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        if ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+            self.send_header("Cache-Control", "public, max-age=604800")
+        else:
+            self.send_header("Cache-Control", "no-cache")
+        self._cors()
+        self.end_headers()
+        self.wfile.write(body)
+
     def log_message(self, fmt, *args):
         pass
 
@@ -1445,6 +2531,10 @@ def main():
 
     t = threading.Thread(target=poller, daemon=True)
     t.start()
+    # 模型用量索引独立线程：首次全量约 2~3 秒，不能在 HTTP 线程里做，否则首屏会卡
+    threading.Thread(target=llm_poller, daemon=True).start()
+    # 应用监控独立采样线程：Win32 API 采集不影响原硬件采样与 GPU-Z 流程。
+    threading.Thread(target=app_poller, name="app_poller", daemon=True).start()
     time.sleep(1.2)
 
     srv = ThreadingHTTPServer((args.host, args.port), Handler)

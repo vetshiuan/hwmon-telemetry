@@ -6,18 +6,28 @@ services:
     image: docker.m.daocloud.io/library/python:3.12-alpine
     container_name: hwmon-hub
     restart: unless-stopped
-    # host 模式：容器直接使用路由器网络栈，才能访问 127.0.0.1/252 与 127.0.0.1:8088
+    # host 模式：容器直接使用路由器网络栈，才能访问 192.0.2.11/252 与 192.0.2.1:8088
     # 路由器 OPA 限制已解除，host 网络可用
     network_mode: host
     working_dir: /app
     volumes:
       - ./:/app:ro
+      # LTX 抓取需要写入数据与封面，单独挂成 rw（覆盖上面的只读父挂载）
+      - ./ltx:/app/ltx
+      # 大模型用量离线缓存（cache_llm_<dev>_<window>.json），容器重启后仍可托底
+      - ./cache:/app/cache
+      # 长期归档库 hub_longterm.db：分钟级硬件采样 + 日级汇总 + 双机模型日账，永久保留
+      - ./data:/app/data
     command: ["python", "-u", "/app/router_hub.py"]
     environment:
-      HWMON_LAPTOP: "http://127.0.0.1:8090"
-      HWMON_DESKTOP: "http://127.0.0.1:8090"
-      HWMON_WOL: "http://127.0.0.1:8088/cgi-bin/wol"
+      HWMON_LAPTOP: "http://192.0.2.11:8090"
+      HWMON_DESKTOP: "http://192.0.2.12:8090"
+      HWMON_WOL: "http://192.0.2.1:8088/cgi-bin/wol"
       HWMON_PORT: "8089"
       HWMON_TIMEOUT: "3"
       HWMON_PROBE_TTL: "5"
       HWMON_PEER_TTL: "10"
+      HWMON_LTX_SYNC: "1"
+      HWMON_LTX_HOURS: "6"
+      LTX_PROXY: "http://127.0.0.1:7890"
+      TZ: "Asia/Shanghai"

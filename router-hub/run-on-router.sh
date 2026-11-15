@@ -23,17 +23,35 @@ fi
 echo "== files in $DIR =="
 ls -l "$DIR"
 
+# 大模型用量聚合的离线缓存目录：容器内 /app 是只读挂载，必须单独给一个可写目录，
+# 否则台式机离线时没有缓存可回退（router_hub.py 会退到 /app/ltx/.llm-cache，但会污染资源库目录）
+mkdir -p "$DIR/cache"
+# 长期归档目录：hub_longterm.db 永久保存分钟级硬件采样、日级硬件/模型/应用汇总
+mkdir -p "$DIR/data"
+# 告警引擎状态目录：push_state.json（日报去重/跨天重置）与 hub_push.log 必须落在 SSD 上。
+# 不挂载的话，这两样只会写进容器可写层，重建容器即归零 —— 表现为「推送悄悄停了、日报漏发」。
+mkdir -p "$DIR/state"
+
 echo "== start container =="
 $D rm -f hwmon-hub >/dev/null 2>&1 || true
 $D run -d --name hwmon-hub \
   --network host \
   --restart unless-stopped \
   -v "$DIR":/app:ro \
+  -v "$DIR/ltx":/app/ltx \
+  -v "$DIR/cache":/app/cache \
+  -v "$DIR/data":/app/data \
+  -v "$DIR/state":/state \
   -w /app \
-  -e HWMON_LAPTOP=http://127.0.0.1:8090 \
-  -e HWMON_DESKTOP=http://127.0.0.1:8090 \
-  -e HWMON_WOL=http://127.0.0.1:8088/cgi-bin/wol \
+  -e HWMON_STATE_DIR=/state \
+  -e HWMON_LAPTOP=http://192.0.2.11:8090 \
+  -e HWMON_DESKTOP=http://192.0.2.12:8090 \
+  -e HWMON_WOL=http://192.0.2.1:8088/cgi-bin/wol \
   -e HWMON_PORT=8089 \
+  -e HWMON_LTX_SYNC=1 \
+  -e HWMON_LTX_HOURS=6 \
+  -e LTX_PROXY=http://127.0.0.1:7890 \
+  -e TZ=Asia/Shanghai \
   "$IMG" \
   python -u /app/router_hub.py
 
