@@ -1411,3 +1411,24 @@ html body .gauge-card>.gauge-sub{margin-top:auto;padding-top:6px;flex:0 0 auto}
 @media(max-width:640px){
   html body .gauges-grid>.gauge-card:last-child>.gauge-sub{margin-top:0;padding-top:0}
 }
+
+/* ==================== UI FIX ROUND 2 (2026-11-16) ==================== */
+/* 1. 环形读数整体下移：数字不再顶到 270° 弧线。 */
+html body .gauge-val{padding-top:24px}
+html body .gauge-val .unit{margin-top:3px}
+html body .master-ring .val{padding-top:0}
+@media(max-width:640px){
+  html body .gauge-val{padding-top:22px}
+}
+/* 2. 主题画廊定位：父级不再使用 transform（transform 会改变 fixed 子元素的定位基准，导致面板飞出屏幕）；移动端改用相对定位。 */
+html body .hw-theme-picker{transform:none!important;isolation:isolate}
+html body #moodBtn.hw-gallery-trigger{transform:translateZ(0)}
+@media(max-width:1020px){
+  html body .hw-theme-gallery{position:absolute;top:calc(100% + 10px);right:0;left:auto;width:min(352px,calc(100vw - 48px));max-height:min(70dvh,600px)}
+  html body #moodBtn.hw-gallery-trigger{max-width:230px}
+}
+/* 3. 触发器与弹出面板保持同一套主题语言：当前主题的强调色贯穿两边。 */
+html body #moodBtn.hw-gallery-trigger{border-color:var(--border-glow)}
+html body #moodBtn.hw-gallery-trigger .hw-theme-current{color:var(--txt)}
+html body .hw-theme-gallery{border-color:var(--border-glow)}
+html body .hw-gallery-heading strong{color:var(--txt)}

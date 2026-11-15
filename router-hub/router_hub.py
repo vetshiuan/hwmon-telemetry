@@ -374,7 +374,7 @@ def _llm_cache_path(dev, window):
 
 
 # 聚合只连内网 PC：显式绕过 HTTP_PROXY。开发机上设了全局代理时，urllib 会把
-# 私网地址也丢给代理时，离线判定要白等满 2.5 秒才回退，前端也跟着卡住。
+# 192.0.2.0 也丢给代理，离线判定白等满 2.5 秒才回退，前端也跟着卡住。
 _LLM_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 

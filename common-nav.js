@@ -7,12 +7,12 @@
   var THEMES = ['hypercar', 'prism', 'gold', 'rainbow', 'liquid-glass', 'forest-breath'];
   var THEME_KEY = 'hwmon_theme';
   var THEME_LABEL = {
-    hypercar: '超跑熔岩',
-    prism: '液态棱镜',
-    gold: '黑金奢华',
-    rainbow: '全息极光',
-    'liquid-glass': '澄光玻璃',
-    'forest-breath': '森息林间'
+    hypercar: '超跑熔岩·流光',
+    prism: '液态棱镜·幻彩',
+    gold: '黑金奢华·鎏金',
+    rainbow: '全息极光·星云',
+    'liquid-glass': '澄光玻璃·折射',
+    'forest-breath': '森息林间·呼吸'
   };
   var PALETTES = {
     hypercar: {
