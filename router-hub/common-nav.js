@@ -7,12 +7,12 @@
   var THEMES = ['hypercar', 'prism', 'gold', 'rainbow', 'liquid-glass', 'forest-breath'];
   var THEME_KEY = 'hwmon_theme';
   var THEME_LABEL = {
-    hypercar: '超跑熔岩·流光',
-    prism: '液态棱镜·幻彩',
-    gold: '黑金奢华·鎏金',
-    rainbow: '全息极光·星云',
-    'liquid-glass': '澄光玻璃·折射',
-    'forest-breath': '森息林间·呼吸'
+    hypercar: '曜夜·超跑熔岩',
+    prism: '幻彩·液态棱镜',
+    gold: '香槟·黑金奢华',
+    rainbow: '极昼·全息极光',
+    'liquid-glass': '澄光·液态玻璃',
+    'forest-breath': '森息·林间呼吸'
   };
   var PALETTES = {
     hypercar: {
@@ -110,6 +110,11 @@
     });
     if (navigator.connection && navigator.connection.addEventListener) { navigator.connection.addEventListener('change', syncVisualState); }
     document.addEventListener('visibilitychange', syncVisualState);
+    window.addEventListener('resize', function () { placeThemeGallery(); });
+    window.addEventListener('scroll', function () {
+      var g = document.getElementById('hwThemeGallery');
+      if (g && !g.hidden) { closeThemeGallery(false); }
+    }, { passive: true });
     document.addEventListener('change', function (e) {
       if (!e.target || e.target.id !== 'hwMotionSelect') { return; }
       var value = e.target.value;
@@ -191,11 +196,29 @@
     gallery.hidden = true; trigger.setAttribute('aria-expanded', 'false');
     if (restoreFocus) { trigger.focus(); }
   }
+  function placeThemeGallery() {
+    var gallery = document.getElementById('hwThemeGallery'), trigger = document.getElementById('moodBtn');
+    if (!gallery || !trigger || gallery.hidden) { return; }
+    var r = trigger.getBoundingClientRect();
+    var vw = window.innerWidth || document.documentElement.clientWidth;
+    var vh = window.innerHeight || document.documentElement.clientHeight;
+    var w = Math.min(352, vw - 24);
+    var left = Math.min(Math.max(12, r.right - w), vw - 12 - w);
+    var top = r.bottom + 8;
+    var maxH = Math.max(220, vh - top - 16);
+    gallery.style.left = Math.round(left) + 'px';
+    gallery.style.right = 'auto';
+    gallery.style.top = Math.round(top) + 'px';
+    gallery.style.width = Math.round(w) + 'px';
+    gallery.style.maxHeight = Math.round(maxH) + 'px';
+  }
   function toggleThemeGallery() {
     var gallery = document.getElementById('hwThemeGallery'), trigger = document.getElementById('moodBtn');
     if (!gallery || !trigger) { return; }
     if (!gallery.hidden) { closeThemeGallery(false); return; }
+    if (gallery.parentNode !== document.body) { document.body.appendChild(gallery); }
     gallery.hidden = false; trigger.setAttribute('aria-expanded', 'true');
+    placeThemeGallery();
     var selected = gallery.querySelector('[aria-selected="true"]');
     if (selected) { selected.focus(); }
   }
@@ -204,6 +227,7 @@
     if (choice && choice.closest('#hwThemeMenu')) {
       setTheme(choice.getAttribute('data-theme-choice')); closeThemeGallery(true); return;
     }
+    if (e.target.closest && e.target.closest('#hwThemeGallery')) { return; }
     if (!(e.target.closest && e.target.closest('.hw-theme-picker'))) { closeThemeGallery(false); }
   }
   function onGalleryKey(e) {
@@ -490,6 +514,8 @@
       '</select><span id="hwMotionState" role="status" aria-live="polite"></span></label>';
     html += '<div class="live" id="live"><i></i><span id="liveTxt">正在连接</span></div>';
 
+    var oldGallery = document.getElementById('hwThemeGallery');
+    if (oldGallery && oldGallery.parentNode) { oldGallery.parentNode.removeChild(oldGallery); }
     header.innerHTML = html;
     header.setAttribute('data-nav-ready', '1');
 
@@ -564,7 +590,8 @@
     var keep = [], kids = document.body.children, i;
     for (i = 0; i < kids.length; i++) {
       var el = kids[i];
-      if ((el.tagName === 'HEADER' && el.classList && el.classList.contains('topbar')) ||
+      if (el.id === 'hwThemeGallery' ||
+          (el.tagName === 'HEADER' && el.classList && el.classList.contains('topbar')) ||
           (el.classList && el.classList.contains('liveline')) ||
           (el.classList && el.classList.contains('ambient-bg')) ||
           (el.tagName === 'SCRIPT' && el.getAttribute('src'))) {

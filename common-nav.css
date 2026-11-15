@@ -1432,3 +1432,7 @@ html body #moodBtn.hw-gallery-trigger{border-color:var(--border-glow)}
 html body #moodBtn.hw-gallery-trigger .hw-theme-current{color:var(--txt)}
 html body .hw-theme-gallery{border-color:var(--border-glow)}
 html body .hw-gallery-heading strong{color:var(--txt)}
+
+/* 3. 画廊改为视口级浮动层：位置由 JS 按触发器实际坐标计算（不依赖任何祖先定位）。 */
+html body #hwThemeGallery{position:fixed!important;right:auto!important;z-index:2147483000;margin:0}
+html body #hwThemeGallery .hw-gallery-heading{padding-top:2px}
