@@ -1191,17 +1191,17 @@ html body[data-theme="hypercar"] {
 html body[data-theme="hypercar"] .ambient-bg .orb-1 {
   left: -30vw; top: -14vh; right: auto; bottom: auto; width: 150vw; height: 82vh; border-radius: 30%; --atmo-angle: -19deg;
   background: radial-gradient(ellipse 54% 25% at 48% 50%,rgba(255,188,100,.46),rgba(255,91,26,.34) 36%,rgba(183,31,17,.14) 62%,transparent 82%);
-  --atmo-animation: hw-atmo-lava 25s ease-in-out infinite;
+  --atmo-animation: hw-atmo-lava 8.333s ease-in-out infinite;
 }
 html body[data-theme="hypercar"] .ambient-bg .orb-2 {
   left: auto; right: -36vw; top: 11vh; bottom: auto; width: 130vw; height: 100vh; border-radius: 42%; --atmo-angle: -31deg;
   background: radial-gradient(ellipse 55% 10% at 46% 48%,rgba(255,196,112,.38),rgba(255,77,20,.27) 40%,transparent 84%);
-  --atmo-animation: hw-atmo-current 31s ease-in-out infinite;
+  --atmo-animation: hw-atmo-current 10.333s ease-in-out infinite;
 }
 html body[data-theme="hypercar"] .ambient-bg .orb-3 {
   left: -12vw; bottom: -28vh; top: auto; right: auto; width: 110vw; height: 85vh; border-radius: 50%;
   background: radial-gradient(ellipse,rgba(195,36,23,.29),rgba(255,79,26,.13) 38%,transparent 73%);
-  --atmo-animation: hw-atmo-fluid 29s ease-in-out infinite reverse;
+  --atmo-animation: hw-atmo-fluid 9.667s ease-in-out infinite reverse;
 }
 html body[data-theme="prism"] {
   --surface-bg: rgba(21,15,38,.77); --surface-2: rgba(12,9,25,.85); --panel: rgba(21,15,38,.77);
@@ -1211,17 +1211,17 @@ html body[data-theme="prism"] {
 html body[data-theme="prism"] .ambient-bg .orb-1 {
   left: -32vw; top: -32vh; right: auto; bottom: auto; width: 120vw; height: 130vh; border-radius: 48% 52% 63% 37%; --atmo-angle: -24deg;
   background: radial-gradient(ellipse at 40% 42%,rgba(230,70,171,.45),rgba(153,66,224,.24) 35%,transparent 66%);
-  --atmo-animation: hw-atmo-fluid 27s ease-in-out infinite;
+  --atmo-animation: hw-atmo-fluid 9s ease-in-out infinite;
 }
 html body[data-theme="prism"] .ambient-bg .orb-2 {
   left: auto; right: -38vw; top: -5vh; bottom: auto; width: 125vw; height: 110vh; border-radius: 64% 36% 43% 57%; --atmo-angle: 22deg;
   background: radial-gradient(ellipse at 54% 40%,rgba(115,83,240,.43),rgba(199,107,239,.2) 36%,transparent 68%);
-  --atmo-animation: hw-atmo-current 33s ease-in-out infinite;
+  --atmo-animation: hw-atmo-current 11s ease-in-out infinite;
 }
 html body[data-theme="prism"] .ambient-bg .orb-3 {
   left: -5vw; bottom: -47vh; top: auto; right: auto; width: 128vw; height: 110vh; border-radius: 48%; --atmo-angle: -15deg;
   background: radial-gradient(ellipse 53% 40% at 55% 44%,rgba(99,238,245,.38),rgba(67,156,217,.18) 38%,transparent 72%);
-  --atmo-animation: hw-atmo-fluid 36s ease-in-out infinite reverse;
+  --atmo-animation: hw-atmo-fluid 12s ease-in-out infinite reverse;
 }
 html body[data-theme="gold"] {
   --surface-bg: rgba(23,20,15,.86); --surface-2: rgba(14,13,10,.9); --panel: rgba(23,20,15,.86);
@@ -1232,17 +1232,17 @@ html body[data-theme="gold"] {
 html body[data-theme="gold"] .ambient-bg .orb-1 {
   left: -30vw; top: -32vh; right: auto; bottom: auto; width: 150vw; height: 130vh; border-radius: 50%; --atmo-angle: -28deg;
   background: radial-gradient(ellipse 58% 18% at 50% 50%,transparent 55%,rgba(223,184,107,.1) 66%,rgba(253,227,168,.46) 68%,rgba(194,141,56,.14) 71%,transparent 78%);
-  --atmo-animation: hw-atmo-filament 34s ease-in-out infinite;
+  --atmo-animation: hw-atmo-filament 11.333s ease-in-out infinite;
 }
 html body[data-theme="gold"] .ambient-bg .orb-2 {
   left: auto; right: -40vw; top: 3vh; bottom: auto; width: 140vw; height: 105vh; border-radius: 50%; --atmo-angle: 24deg;
   background: radial-gradient(ellipse 57% 26% at 50% 50%,transparent 55%,rgba(246,222,166,.32) 62%,rgba(195,143,61,.08) 65%,transparent 76%);
-  --atmo-animation: hw-atmo-filament 41s ease-in-out infinite reverse;
+  --atmo-animation: hw-atmo-filament 13.667s ease-in-out infinite reverse;
 }
 html body[data-theme="gold"] .ambient-bg .orb-3 {
   left: -25vw; bottom: -35vh; top: auto; right: auto; width: 115vw; height: 105vh; border-radius: 50%;
   background: radial-gradient(ellipse,rgba(199,152,66,.2),rgba(169,117,39,.08) 40%,transparent 70%);
-  --atmo-animation: hw-atmo-fluid 38s ease-in-out infinite;
+  --atmo-animation: hw-atmo-fluid 12.667s ease-in-out infinite;
 }
 html body[data-theme="rainbow"] {
   --surface-bg: rgba(14,20,33,.8); --surface-2: rgba(9,12,24,.87); --panel: rgba(14,20,33,.8);
@@ -1252,17 +1252,17 @@ html body[data-theme="rainbow"] {
 html body[data-theme="rainbow"] .ambient-bg .orb-1 {
   left: -27vw; top: -43vh; right: auto; bottom: auto; width: 105vw; height: 170vh; border-radius: 44%; --atmo-angle: -27deg;
   background: radial-gradient(ellipse 19% 58% at 52% 42%,rgba(108,244,185,.41),rgba(28,200,189,.18) 45%,transparent 78%),radial-gradient(ellipse 11% 50% at 70% 42%,rgba(133,159,255,.26),transparent 76%);
-  --atmo-animation: hw-atmo-curtain 29s ease-in-out infinite;
+  --atmo-animation: hw-atmo-curtain 9.667s ease-in-out infinite;
 }
 html body[data-theme="rainbow"] .ambient-bg .orb-2 {
   left: auto; right: -29vw; top: -29vh; bottom: auto; width: 112vw; height: 160vh; border-radius: 39%; --atmo-angle: 25deg;
   background: radial-gradient(ellipse 24% 56% at 48% 42%,rgba(170,88,247,.36),rgba(237,98,180,.18) 43%,transparent 76%),radial-gradient(ellipse 9% 54% at 64% 45%,rgba(109,226,246,.32),transparent 78%);
-  --atmo-animation: hw-atmo-curtain 37s ease-in-out infinite reverse;
+  --atmo-animation: hw-atmo-curtain 12.333s ease-in-out infinite reverse;
 }
 html body[data-theme="rainbow"] .ambient-bg .orb-3 {
   left: -10vw; bottom: -56vh; top: auto; right: auto; width: 120vw; height: 125vh; border-radius: 50%; --atmo-angle: -18deg;
   background: radial-gradient(ellipse,rgba(74,143,242,.27),rgba(185,113,227,.11) 43%,transparent 72%);
-  --atmo-animation: hw-atmo-fluid 35s ease-in-out infinite;
+  --atmo-animation: hw-atmo-fluid 11.667s ease-in-out infinite;
 }
 html body[data-theme="liquid-glass"] {
   --surface-bg: rgba(20,35,54,.74); --surface-2: rgba(10,23,39,.87); --panel: rgba(20,35,54,.74);
@@ -1272,17 +1272,17 @@ html body[data-theme="liquid-glass"] {
 html body[data-theme="liquid-glass"] .ambient-bg .orb-1 {
   left: -34vw; top: -29vh; right: auto; bottom: auto; width: 150vw; height: 122vh; border-radius: 38% 62% 65% 35%; --atmo-angle: -23deg;
   background: radial-gradient(ellipse 54% 39% at 48% 48%,transparent 48%,rgba(114,169,211,.12) 57%,rgba(225,245,255,.47) 61%,rgba(165,216,246,.2) 65%,transparent 76%);
-  --atmo-animation: hw-atmo-fold 28s ease-in-out infinite;
+  --atmo-animation: hw-atmo-fold 9.333s ease-in-out infinite;
 }
 html body[data-theme="liquid-glass"] .ambient-bg .orb-2 {
   left: auto; right: -38vw; top: 4vh; bottom: auto; width: 142vw; height: 135vh; border-radius: 62% 38% 41% 59%; --atmo-angle: 27deg;
   background: radial-gradient(ellipse 53% 40% at 50% 48%,transparent 46%,rgba(155,171,213,.14) 55%,rgba(213,224,255,.35) 60%,rgba(133,188,221,.12) 66%,transparent 76%);
-  --atmo-animation: hw-atmo-fold 36s ease-in-out infinite reverse;
+  --atmo-animation: hw-atmo-fold 12s ease-in-out infinite reverse;
 }
 html body[data-theme="liquid-glass"] .ambient-bg .orb-3 {
   left: -21vw; bottom: -43vh; top: auto; right: auto; width: 136vw; height: 110vh; border-radius: 50%; --atmo-angle: -11deg;
   background: radial-gradient(ellipse,rgba(144,199,224,.22),rgba(93,148,183,.1) 40%,transparent 73%);
-  --atmo-animation: hw-atmo-fluid 39s ease-in-out infinite;
+  --atmo-animation: hw-atmo-fluid 13s ease-in-out infinite;
 }
 html body[data-theme="forest-breath"] {
   --surface-bg: rgba(12,32,25,.82); --surface-2: rgba(7,22,16,.9); --panel: rgba(12,32,25,.82);
@@ -1293,17 +1293,17 @@ html body[data-theme="forest-breath"] {
 html body[data-theme="forest-breath"] .ambient-bg .orb-1 {
   left: -23vw; top: -32vh; right: auto; bottom: auto; width: 145vw; height: 145vh; border-radius: 0; transform-origin: 35% 5%;
   background: radial-gradient(ellipse at 34% 15%,rgba(222,233,161,.38),transparent 43%),conic-gradient(from 151deg at 35% -12%,transparent 0deg,rgba(181,219,150,.29) 9deg,transparent 19deg,rgba(127,203,156,.19) 28deg,transparent 43deg);
-  --atmo-animation: hw-atmo-breath 12s ease-in-out infinite;
+  --atmo-animation: hw-atmo-breath 4s ease-in-out infinite;
 }
 html body[data-theme="forest-breath"] .ambient-bg .orb-2 {
   left: auto; right: -16vw; top: -16vh; bottom: auto; width: 128vw; height: 130vh; border-radius: 0;
   background: radial-gradient(ellipse 12% 30% at 12% 20%,rgba(2,13,9,.8) 40%,transparent 60%),radial-gradient(ellipse 18% 9% at 39% 15%,rgba(2,13,9,.7) 38%,transparent 62%),radial-gradient(ellipse 11% 26% at 78% 38%,rgba(2,13,9,.75) 36%,transparent 61%),radial-gradient(ellipse 20% 11% at 83% 67%,rgba(2,13,9,.65) 40%,transparent 63%);
-  --atmo-animation: hw-atmo-canopy 12s ease-in-out infinite;
+  --atmo-animation: hw-atmo-canopy 4s ease-in-out infinite;
 }
 html body[data-theme="forest-breath"] .ambient-bg .orb-3 {
   left: -28vw; bottom: -31vh; top: auto; right: auto; width: 150vw; height: 95vh; border-radius: 50%;
   background: radial-gradient(ellipse 45% 32% at 36% 50%,rgba(180,211,187,.26),transparent 76%),radial-gradient(ellipse 35% 30% at 77% 61%,rgba(158,203,179,.19),transparent 78%);
-  --atmo-animation: hw-atmo-fog 36s ease-in-out infinite;
+  --atmo-animation: hw-atmo-fog 12s ease-in-out infinite;
 }
 html body[data-theme] :is(.card,.panel,.live-card,.master-card,.gauge-card) {
   animation: none !important; transform: none !important; background-image: var(--surface-img); border-color: var(--line);
@@ -1338,7 +1338,7 @@ html body[data-theme]:is([data-motion-effective="lite"],[data-motion-effective="
 html body[data-theme]:is([data-motion-effective="lite"],[data-motion-effective="off"]) *::before,
 html body[data-theme]:is([data-motion-effective="lite"],[data-motion-effective="off"]) *::after { animation: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 html body[data-theme][data-motion-effective="lite"] .ambient-bg :is(.orb-2,.orb-3) { display: none; }
-html body[data-theme][data-motion-effective="lite"] .ambient-bg .orb-1 { animation: var(--hw-atmo-motion,hw-atmo-lite 24s ease-in-out infinite) !important; filter: none !important; will-change: opacity; }
+html body[data-theme][data-motion-effective="lite"] .ambient-bg .orb-1 { animation: var(--hw-atmo-motion,hw-atmo-lite 8s ease-in-out infinite) !important; filter: none !important; will-change: opacity; }
 html body[data-theme][data-motion-effective="off"] .ambient-bg .orb { animation: none !important; will-change: auto; }
 html body[data-theme]:is([data-motion-effective="lite"],[data-motion-effective="off"]) :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.link,.app,.stat)::before { opacity: 0 !important; transition: none; }
 html body[data-theme]:is([data-motion-effective="lite"],[data-motion-effective="off"]) .hw-ripple { display: none; }
