@@ -1001,8 +1001,8 @@
     ctx.fillRect(0, 0, w, h);
 
     /* 拉坯旋纹：偏心同心圆，中心随呼吸微动 */
-    var spinCx = w * 0.5 + Math.sin(t * 0.22) * w * 0.012;
-    var spinCy = h * 0.5 + Math.cos(t * 0.18) * h * 0.014;
+    var spinCx = w * 0.5 + Math.sin(t * 0.22) * w * 0.022;
+    var spinCy = h * 0.5 + Math.cos(t * 0.18) * h * 0.026;
     ctx.strokeStyle = 'rgba(255,255,255,.30)';
     ctx.lineWidth = 1.1;
     for (var rr = 0.05 * w; rr < w * 0.78; rr += w * 0.052) {
@@ -1037,7 +1037,7 @@
       var unit = sc.sc * w;
       ctx.save();
       ctx.translate(sc.cx * w, sc.cy * h);
-      ctx.rotate(sc.rot + Math.sin(t * 0.35 + si) * 0.06);
+      ctx.rotate(sc.rot + Math.sin(t * 0.35 + si) * 0.10);
       var kiln = tauVal > 0.45 && (si % 2 === 1);
       ctx.fillStyle = kiln
         ? 'rgba(186,62,58,' + (0.10 + tauVal * 0.16) + ')'
@@ -1173,14 +1173,28 @@
       ctx.fillRect(0, baseH - h * 0.04, w, h * 0.11);
     }
 
+    /* 流云：贴在山腰上方缓慢横移，给静态山体补上肉眼可辨的运动 */
+    for (var cl = 0; cl < 4; cl++) {
+      var cy0 = h * (0.26 + cl * 0.10);
+      var drift = ((t * (0.012 + cl * 0.005) + cl * 0.31) % 1.5) - 0.25;
+      var cxx = drift * w;
+      var bandW = w * 0.55;
+      var cloudGrad = ctx.createLinearGradient(cxx - bandW, 0, cxx + bandW, 0);
+      cloudGrad.addColorStop(0, 'rgba(255,196,152,0)');
+      cloudGrad.addColorStop(0.5, 'rgba(255,196,152,' + (0.075 + cl * 0.018) + ')');
+      cloudGrad.addColorStop(1, 'rgba(255,196,152,0)');
+      ctx.fillStyle = cloudGrad;
+      ctx.fillRect(cxx - bandW, cy0 - h * 0.018, bandW * 2, h * 0.036);
+    }
+
     /* 丁达尔体积光柱：screen 混合，光心锁在太阳位置 */
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     var rayLen = Math.hypot(w, h) * 1.25;
     for (var r = 0; r < 16; r++) {
-      var baseAng = 0.10 + (r / 16) * 1.30 + Math.sin(t * 0.4 + r * 1.7) * 0.035;
+      var baseAng = 0.10 + (r / 16) * 1.30 + Math.sin(t * 0.4 + r * 1.7) * 0.055;
       var spread = 0.014 + (r % 3) * 0.013;
-      var intensity = (0.07 + 0.09 * Math.sin(t * 0.7 + r * 2.1)) * (0.75 + tauVal * 0.6);
+      var intensity = (0.07 + 0.11 * Math.sin(t * 0.7 + r * 2.1)) * (0.75 + tauVal * 0.6);
       if (intensity <= 0) { intensity = 0.02; }
       var rayGrad = ctx.createLinearGradient(sunX, sunY,
         sunX + Math.cos(baseAng) * rayLen, sunY + Math.sin(baseAng) * rayLen);
@@ -1243,8 +1257,8 @@
     ctx.globalCompositeOperation = 'multiply';
     for (var ci = 0; ci < INK_CLOUDS.length; ci++) {
       var ic = INK_CLOUDS[ci];
-      var cxp = (ic.u + 0.025 * Math.sin(t * 0.25 + ic.seed)) * w;
-      var cyp = (ic.v + 0.02 * Math.cos(t * 0.2 + ic.seed)) * h;
+      var cxp = (ic.u + 0.032 * Math.sin(t * 0.25 + ic.seed)) * w;
+      var cyp = (ic.v + 0.026 * Math.cos(t * 0.2 + ic.seed)) * h;
       var maxRx = ic.rx * w, maxRy = ic.ry * h;
       var isCinnabar = tauVal > 0.45 && ci === 2;
       var rCol = isCinnabar ? 195 : ic.shade;
@@ -1335,8 +1349,8 @@
 
     for (var idx = 0; idx < pools.length; idx++) {
       var pl = pools[idx];
-      var cxp = pl.u * w + Math.cos(t * 0.5 + pl.ph) * w * 0.014;
-      var cyp = pl.v * h + Math.sin(t * 0.4 + pl.ph) * h * 0.016;
+      var cxp = pl.u * w + Math.cos(t * 0.5 + pl.ph) * w * 0.022;
+      var cyp = pl.v * h + Math.sin(t * 0.4 + pl.ph) * h * 0.024;
       /* 磁吸：水滴整体被指针牵引，越近牵引越强 */
       if (pointer.active) {
         cxp += (mx - cxp) * 0.16;
@@ -2072,8 +2086,11 @@
 
     if (paused) { return; }
 
-    /* 非 full：只保证一帧正确的静态材质，不产生持续绘制 */
-    if (motion !== 'full') {
+    /* off：只保证一帧正确的静态材质，不产生持续绘制。
+       lite：照常流动，降频到 ~12 FPS（手机/省流场景），不跑鼠标特效。
+       full：24 FPS + 鼠标特效。
+       时间推进按真实 dt 计算，换档不会让材质「跳一下」或变速。 */
+    if (motion === 'off') {
       if (!dirty) { return; }
       if (now - lastPaint < 90) { return; }
       lastPaint = now;
@@ -2084,13 +2101,16 @@
       return;
     }
 
-    if (now - lastPaint < 41) { return; }
+    var isLite = (motion === 'lite');
+    var frameGap = isLite ? 83 : 41;
+    if (now - lastPaint < frameGap) { return; }
+    var dt = lastPaint ? Math.min(now - lastPaint, 200) : frameGap;
     lastPaint = now;
 
-    tau += (tauTarget - tau) * 0.075;
+    tau += (tauTarget - tau) * (isLite ? 0.12 : 0.075);
     if (isCanvas) { drawBackground(theme); }
 
-    var hasFx = trail.length > 0 || bursts.length > 0;
+    var hasFx = !isLite && (trail.length > 0 || bursts.length > 0);
     if (fxCtx) {
       if (hasFx) {
         renderInteractiveFx(fxCtx, fxCanvas.width, fxCanvas.height, theme);
@@ -2102,8 +2122,9 @@
     }
     dirty = false;
 
-    /* 温度越高，材质内部流速越快 */
-    t += 0.018 * (0.45 + tau * 1.85);
+    /* 温度越高，材质内部流速越快。
+       按真实帧间隔推进，24 FPS（41ms）与 lite 12 FPS（83ms）的流速一致。 */
+    t += dt * 0.00044 * (0.45 + tau * 1.85);
   }
 
   var startTries = 0;

@@ -189,7 +189,15 @@
 
 - 顶层 `.hw-fx-canvas` 按皮肤分派 12 套鼠标跟随笔触与点击特效：青花裂纹、金光放射、墨团洇开、磁爆尖刺、晶格炸裂、双子星芒、点阵冲击波、棱镜色散、极光波纹、玻璃涟漪、叶脉扩散。
 - **温度旁路**：包装 `window.fetch`，命中 `/api/snapshot` 时读 `cpu.temp` / `gpu.hot` / `gpu.core`（兼容 `temp_c` / `hotspot_c`），映射 `tau = clamp((T − 38) / 52)`，驱动材质色调、内部流速与窑变/朱砂特效。也可手动 `window.setHwmonThermalState(°C)`。
-- 绘制全部受 `data-motion-effective` 管控：`full` 才跑动画（24 FPS 节流），`lite`/`off` 只渲染一帧静态材质；`data-fx-paused="true"` 与系统 `prefers-reduced-motion` 一律停笔。
+- 绘制全部受 `data-motion-effective` 管控：
+
+  | 档位 | 帧率 | 材质 | 鼠标特效 |
+  |---|---|---|---|
+  | `full` | 24 FPS | 流动 | 有 |
+  | `lite` | 12 FPS | **仍然流动** | 无 |
+  | `off` | — | 一帧静态 | 无 |
+
+  `data-fx-paused="true"`（标签页切到后台）与系统 `prefers-reduced-motion` 一律停笔。时间推进按真实帧间隔计算，`lite` 与 `full` 的流速一致，换档不会跳帧或变速。
 - 背景画布按材质降采样：云/雾/墨类 0.50–0.62，晶格/点阵类 0.72–0.74，兼顾质感与主线程占用。
 
 ### 5.3 亮色适配
@@ -427,6 +435,21 @@ ssh root@10.1.1.254 "ls -l /mnt/usb/hwmon-hub/data/"
 - 写死 `#fff` 是最大隐患。本次已把 4 个页面的硬编码浅色全部换成变量。
 - 用程序化对比度扫描（采样 500+ 文本节点，排除渐变背景与 `-webkit-text-fill-color:transparent`）验证：4 页面 × 3 款亮色皮肤 = 0 处低对比。
 - **CSS 特异性陷阱**：`:is(.row .k, .tool-link, …)` 会取参数里**最高**特异性（`.row .k` = 2 类），把整条规则抬到 2 类，从而反向覆盖后面的 `.tool-link.active` 白字规则 → 深底深字。次级文字兜底必须**逐条列选择器**，不要图省事塞进一个 `:is()`。
+
+### 「背景不动」的排查顺序
+
+按顺序看，前三项占九成：
+
+1. **看顶栏「动效」右侧的小字**（`#hwMotionState`），它直接报实际档位和原因：
+   - `背景缓缓流动` → full，正常；
+   - `精简氛围` → lite，12 FPS 仍流动，但触屏下没有鼠标特效，观感比桌面安静；
+   - `动效已关闭` → 手动选了「关闭」；
+   - `系统减少动态已开启` → 系统级开关压过一切（Windows：设置 → 辅助功能 → 视觉效果 → 动画效果；iOS：辅助功能 → 动态效果 → 减弱动态效果；Android：开发者选项 → 动画缩放）；
+   - `后台暂停` → 标签页在后台，`document.hidden=true` 时不绘制，属设计。
+2. **动效下拉**是否被选成「精简」或「关闭」（存 `localStorage.hwmon_motion`）。
+3. **是不是在手机/平板上**：`pointer: coarse` 时「自动」档会落到 lite（12 FPS 流动、无粒子特效）。想强制看完整效果，把下拉改成「完整」。
+4. 确认版本：`curl -s http://10.1.1.254:8089/common-nav.js | wc -c`，v8 后期约 96.8 KB；明显更小说明还是旧文件。
+5. 最后才怀疑代码：控制台执行 `window.getHwmonThermalState()`，1.5 秒内 `tau` 不变说明主循环没跑（多半是 `document.hidden`）。
 
 ---
 
