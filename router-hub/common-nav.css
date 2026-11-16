@@ -1436,3 +1436,454 @@ html body .hw-gallery-heading strong{color:var(--txt)}
 /* 3. 画廊改为视口级浮动层：位置由 JS 按触发器实际坐标计算（不依赖任何祖先定位）。 */
 html body #hwThemeGallery{position:fixed!important;right:auto!important;z-index:2147483000;margin:0}
 html body #hwThemeGallery .hw-gallery-heading{padding-top:2px}
+
+/* =====================================================================
+ * V8 · 十二皮肤体系
+ *  A 类（8 款）：独立物理材质 Canvas 接管背景，旧 .orb 全部下线
+ *  B 类（4 款）：prism / rainbow / liquid-glass / forest-breath 原样保留
+ * 本节只做「接管关系 / 配色 / 器物质感 / 文字对比」，渲染算法在 JS 里。
+ * ===================================================================== */
+
+/* ---------------- 1. 画布接管关系 ---------------- */
+.ambient-bg .hw-material-canvas{
+  position:absolute;inset:0;width:100%;height:100%;
+  display:none;pointer-events:none;z-index:1;
+  transform:translateZ(0);
+}
+.hw-fx-canvas{
+  position:fixed;inset:0;width:100%;height:100%;
+  pointer-events:none;z-index:9998;opacity:.94;
+  contain:strict;
+}
+@media (hover:none),(pointer:coarse){
+  .hw-fx-canvas{display:none!important}
+}
+
+/* A 类皮肤：接管背景 */
+body:is([data-theme="blue-porcelain"],[data-theme="sunrise-gold"],[data-theme="ink-wash"],
+        [data-theme="ferrofluid-chrome"],[data-theme="black-opal"],[data-theme="gemini-nebula"],
+        [data-theme="gemini-porcelain"],[data-theme="gemini-halftone"]) .ambient-bg .orb{
+  display:none!important;
+}
+body:is([data-theme="blue-porcelain"],[data-theme="sunrise-gold"],[data-theme="ink-wash"],
+        [data-theme="ferrofluid-chrome"],[data-theme="black-opal"],[data-theme="gemini-nebula"],
+        [data-theme="gemini-porcelain"],[data-theme="gemini-halftone"]) .ambient-bg .hw-material-canvas{
+  display:block;
+}
+/* 画布之上压一层氛围柔光/暗角，避免材质贴边发硬 */
+body:is([data-theme="blue-porcelain"],[data-theme="sunrise-gold"],[data-theme="ink-wash"],
+        [data-theme="ferrofluid-chrome"],[data-theme="black-opal"],[data-theme="gemini-nebula"],
+        [data-theme="gemini-porcelain"],[data-theme="gemini-halftone"]) .ambient-bg::after{
+  z-index:2;
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .ambient-bg::after{
+  background:radial-gradient(ellipse at 50% 34%,rgba(255,255,255,.30),transparent 58%),
+             radial-gradient(ellipse at 50% 100%,rgba(255,255,255,.16),transparent 62%);
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .ambient-bg::before{
+  opacity:.18;
+}
+
+/* B 类皮肤：恢复 .orb（覆盖 ATMOSPHERE V2 的 display:block 兜底无需，但要压住上方隐藏规则） */
+body:is([data-theme="prism"],[data-theme="rainbow"],[data-theme="liquid-glass"],[data-theme="forest-breath"]) .ambient-bg .orb{
+  display:block;
+}
+body:is([data-theme="prism"],[data-theme="rainbow"],[data-theme="liquid-glass"],[data-theme="forest-breath"]) .ambient-bg .hw-material-canvas{
+  display:none!important;
+}
+
+/* ---------------- 2. 深色材质皮肤变量 ---------------- */
+/* 日照·梅里金山（接替 hypercar） */
+html body[data-theme="sunrise-gold"]{
+  color-scheme:dark;
+  --bg:#090b16; --atmo-solid:#090b16; --atmo-edge:rgba(255,215,110,.20);
+  --atmo-texture:repeating-linear-gradient(115deg,rgba(255,196,110,.022) 0 1px,transparent 1px 16px);
+  --surface-bg:rgba(16,20,36,.64); --surface-2:rgba(10,14,26,.80); --panel:rgba(18,22,40,.68);
+  --surface-img:linear-gradient(140deg,rgba(255,196,110,.07),transparent 46%,rgba(59,89,152,.045));
+  --topbar-bg:rgba(9,11,22,.78); --thead-bg:rgba(20,26,46,.86);
+  --line:rgba(255,215,110,.16); --border-glow:rgba(245,158,11,.38);
+  --spot:rgba(255,215,102,.16); --ripple:rgba(255,215,102,.34);
+  --p1:#f59e0b; --p2:#ffd166; --p3:#ff5e2a;
+  --ok:#34d399; --warn:#fbbf24; --bad:#ef4444; --blue:#60a5fa; --cyan:#38bdf8;
+  --txt:#f8fafc; --dim:#b4c0d9; --dim2:#7684a3;
+  --radius:18px; --radius-sm:12px;
+  --grad-main:linear-gradient(135deg,#3b5998 0%,#f59e0b 52%,#ffd166 100%);
+  --grad-ribbon:linear-gradient(90deg,rgba(59,89,152,0),#f59e0b 40%,#ffd166 70%,rgba(255,94,42,0));
+  --grad-flow:linear-gradient(90deg,#3b5998,#f59e0b,#ffd166,#ff5e2a,#3b5998);
+  --grad-flow-warn:linear-gradient(90deg,#a16207,#fbbf24,#fef3c7,#fbbf24,#a16207);
+  --grad-flow-bad:linear-gradient(90deg,#991b1b,#ef4444,#fecaca,#ef4444,#991b1b);
+  --flow-period:250px; --flow-duration:13s;
+}
+/* 磁流·液态水银（接替 gold） */
+html body[data-theme="ferrofluid-chrome"]{
+  color-scheme:dark;
+  --bg:#07090d; --atmo-solid:#07090d; --atmo-edge:rgba(226,232,240,.20);
+  --surface-bg:rgba(15,18,25,.68); --surface-2:rgba(10,12,18,.84); --panel:rgba(18,22,30,.72);
+  --surface-img:linear-gradient(140deg,rgba(226,232,240,.075),transparent 44%,rgba(147,197,253,.04));
+  --topbar-bg:rgba(8,10,14,.80); --thead-bg:rgba(20,25,34,.88);
+  --line:rgba(203,213,225,.16); --border-glow:rgba(226,232,240,.34);
+  --spot:rgba(226,232,240,.14); --ripple:rgba(226,232,240,.34);
+  --p1:#cbd5e1; --p2:#93c5fd; --p3:#64748b;
+  --ok:#34d399; --warn:#f59e0b; --bad:#f87171; --blue:#93c5fd; --cyan:#67e8f9;
+  --txt:#f1f5f9; --dim:#94a3b8; --dim2:#64748b;
+  --radius:16px; --radius-sm:10px;
+  --grad-main:linear-gradient(135deg,#64748b 0%,#e2e8f0 50%,#93c5fd 100%);
+  --grad-ribbon:linear-gradient(90deg,rgba(71,85,105,0),#cbd5e1 46%,#f8fafc 66%,rgba(147,197,253,0));
+  --grad-flow:linear-gradient(90deg,#64748b,#cbd5e1,#f8fafc,#93c5fd,#64748b);
+  --grad-flow-warn:linear-gradient(90deg,#a16207,#fbbf24,#fef3c7,#fbbf24,#a16207);
+  --grad-flow-bad:linear-gradient(90deg,#991b1b,#f87171,#fecaca,#f87171,#991b1b);
+  --flow-period:240px; --flow-duration:15s;
+}
+/* 欧泊·黑曜变彩 */
+html body[data-theme="black-opal"]{
+  color-scheme:dark;
+  --bg:#05060a; --atmo-solid:#05060a; --atmo-edge:rgba(0,230,118,.18);
+  --surface-bg:rgba(12,15,22,.66); --surface-2:rgba(8,10,16,.82); --panel:rgba(14,18,28,.70);
+  --surface-img:linear-gradient(135deg,rgba(0,230,118,.06),transparent 42%,rgba(155,81,224,.05));
+  --topbar-bg:rgba(6,8,12,.80); --thead-bg:rgba(16,21,32,.88);
+  --line:rgba(0,230,118,.15); --border-glow:rgba(0,176,255,.36);
+  --spot:rgba(0,230,118,.12); --ripple:rgba(0,230,118,.32);
+  --p1:#00e676; --p2:#00b0ff; --p3:#ff5252;
+  --ok:#00e676; --warn:#ffab40; --bad:#ff5252; --blue:#00b0ff; --cyan:#18ffff;
+  --txt:#f0f7ff; --dim:#9ab0c9; --dim2:#5d708a;
+  --radius:20px; --radius-sm:12px;
+  --grad-main:linear-gradient(135deg,#00e676 0%,#00b0ff 48%,#9b51e0 100%);
+  --grad-ribbon:linear-gradient(90deg,rgba(0,230,118,0),#00b0ff 42%,#9b51e0 72%,rgba(255,82,82,0));
+  --grad-flow:linear-gradient(90deg,#00e676,#00b0ff,#9b51e0,#ff5252,#00e676);
+  --grad-flow-warn:linear-gradient(90deg,#a16207,#ffab40,#ffe0b2,#ffab40,#a16207);
+  --grad-flow-bad:linear-gradient(90deg,#991b1b,#ff5252,#ffcdd2,#ff5252,#991b1b);
+  --flow-period:260px; --flow-duration:12s;
+}
+/* 星云·双子流体 */
+html body[data-theme="gemini-nebula"]{
+  color-scheme:dark;
+  --bg:#080a12; --atmo-solid:#080a12; --atmo-edge:rgba(168,199,250,.18);
+  --surface-bg:rgba(15,18,28,.60); --surface-2:rgba(11,14,22,.78); --panel:rgba(16,20,32,.64);
+  --surface-img:linear-gradient(140deg,rgba(168,199,250,.07),transparent 48%,rgba(217,101,112,.045));
+  --topbar-bg:rgba(8,10,18,.76); --thead-bg:rgba(17,21,34,.86);
+  --line:rgba(168,199,250,.14); --border-glow:rgba(155,114,203,.36);
+  --spot:rgba(155,114,203,.15); --ripple:rgba(168,199,250,.30);
+  --p1:#4285f4; --p2:#9b72cb; --p3:#d96570;
+  --ok:#34a853; --warn:#fbbc04; --bad:#ea4335; --blue:#669df6; --cyan:#78d9ec;
+  --txt:#f0f4ff; --dim:#9aa8c7; --dim2:#687594;
+  --radius:22px; --radius-sm:14px;
+  --grad-main:linear-gradient(135deg,#4285f4 0%,#9b72cb 50%,#d96570 100%);
+  --grad-ribbon:linear-gradient(90deg,rgba(66,133,244,0),#9b72cb 42%,#d96570 70%,rgba(244,156,70,0));
+  --grad-flow:linear-gradient(90deg,#4285f4,#9b72cb,#d96570,#f49c46,#4285f4);
+  --grad-flow-warn:linear-gradient(90deg,#a16207,#fbbc04,#fef3c7,#fbbc04,#a16207);
+  --grad-flow-bad:linear-gradient(90deg,#991b1b,#ea4335,#fecaca,#ea4335,#991b1b);
+  --flow-period:250px; --flow-duration:14s;
+}
+/* 极光·点阵波束 */
+html body[data-theme="gemini-halftone"]{
+  color-scheme:dark;
+  --bg:#070910; --atmo-solid:#070910; --atmo-edge:rgba(120,217,236,.18);
+  --surface-bg:rgba(12,16,26,.66); --surface-2:rgba(9,12,20,.82); --panel:rgba(14,19,30,.70);
+  --surface-img:linear-gradient(140deg,rgba(120,217,236,.07),transparent 46%,rgba(66,133,244,.045));
+  --topbar-bg:rgba(7,9,16,.80); --thead-bg:rgba(15,21,33,.88);
+  --line:rgba(120,217,236,.14); --border-glow:rgba(66,133,244,.36);
+  --spot:rgba(120,217,236,.12); --ripple:rgba(120,217,236,.32);
+  --p1:#78d9ec; --p2:#4285f4; --p3:#f49c46;
+  --ok:#34a853; --warn:#fbbc04; --bad:#ea4335; --blue:#4285f4; --cyan:#78d9ec;
+  --txt:#eef6ff; --dim:#95abc4; --dim2:#5d7491;
+  --radius:20px; --radius-sm:12px;
+  --grad-main:linear-gradient(135deg,#78d9ec 0%,#4285f4 52%,#9b72cb 100%);
+  --grad-ribbon:linear-gradient(90deg,rgba(120,217,236,0),#4285f4 44%,#9b72cb 74%,rgba(244,156,70,0));
+  --grad-flow:linear-gradient(90deg,#78d9ec,#4285f4,#9b72cb,#f49c46,#78d9ec);
+  --grad-flow-warn:linear-gradient(90deg,#a16207,#fbbc04,#fef3c7,#fbbc04,#a16207);
+  --grad-flow-bad:linear-gradient(90deg,#991b1b,#ea4335,#fecaca,#ea4335,#991b1b);
+  --flow-period:240px; --flow-duration:11s;
+}
+
+/* 五款深色材质皮肤的强调块：grad-flow 里含深蓝/深紫段，
+   原来的深字在这些相位上会糊掉，统一反白并压一层阴影。 */
+html body:is([data-theme="sunrise-gold"],[data-theme="ferrofluid-chrome"],[data-theme="black-opal"],
+             [data-theme="gemini-nebula"],[data-theme="gemini-halftone"]) .btn,
+html body:is([data-theme="sunrise-gold"],[data-theme="ferrofluid-chrome"],[data-theme="black-opal"],
+             [data-theme="gemini-nebula"],[data-theme="gemini-halftone"]) .tool-link.active{
+  color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,.55);
+}
+
+/* ---------------- 3. 亮色材质皮肤变量 ---------------- *//* 天青·元青花釉（汝窑天青） */
+html body[data-theme="blue-porcelain"]{
+  color-scheme:light;
+  --bg:#d8e6ee; --atmo-solid:#e7f0f5; --atmo-edge:rgba(255,255,255,.95);
+  --atmo-texture:repeating-linear-gradient(128deg,rgba(27,59,115,.030) 0 1px,transparent 1px 15px);
+  --surface-bg:rgba(246,251,253,.76); --surface-2:rgba(235,244,248,.88); --panel:rgba(248,252,254,.80);
+  --surface-img:linear-gradient(150deg,rgba(255,255,255,.55),rgba(214,231,240,.28) 62%,rgba(27,59,115,.035));
+  --topbar-bg:rgba(238,246,250,.88); --thead-bg:rgba(226,238,246,.94);
+  --line:rgba(27,59,115,.14); --border-glow:rgba(46,95,161,.32);
+  --spot:rgba(255,255,255,.55); --ripple:rgba(27,59,115,.22);
+  --p1:#1b3b73; --p2:#2e5fa1; --p3:#a62c2b;
+  --ok:#1f7a5c; --warn:#b45309; --bad:#a62c2b; --blue:#2e5fa1; --cyan:#387c9e;
+  --txt:#122034; --dim:#3b536e; --dim2:#627b96;
+  --radius:20px; --radius-sm:12px;
+  --grad-main:linear-gradient(135deg,#1b3b73 0%,#2e5fa1 55%,#7ba6cc 100%);
+  --grad-ribbon:linear-gradient(90deg,rgba(27,59,115,0),#2e5fa1 46%,#7ba6cc 70%,rgba(166,44,43,0));
+  --grad-flow:linear-gradient(90deg,#1b3b73,#2e5fa1,#7ba6cc,#a62c2b,#1b3b73);
+  --grad-flow-warn:linear-gradient(90deg,#8a4b0f,#d97706,#fde68a,#d97706,#8a4b0f);
+  --grad-flow-bad:linear-gradient(90deg,#7f1d1d,#a62c2b,#e7a3a2,#a62c2b,#7f1d1d);
+  --flow-period:250px; --flow-duration:14s;
+}
+/* 烟雨·徽墨宣纸（生宣） */
+html body[data-theme="ink-wash"]{
+  color-scheme:light;
+  --bg:#f3efe4; --atmo-solid:#f7f3ea; --atmo-edge:rgba(255,255,255,.92);
+  --atmo-texture:repeating-linear-gradient(0deg,rgba(120,108,88,.045) 0 1px,transparent 1px 7px);
+  --surface-bg:rgba(248,245,236,.78); --surface-2:rgba(240,235,224,.88); --panel:rgba(250,247,240,.82);
+  --surface-img:linear-gradient(150deg,rgba(255,255,255,.45),rgba(232,225,208,.35) 62%,rgba(28,30,34,.03));
+  --topbar-bg:rgba(245,241,231,.90); --thead-bg:rgba(234,228,214,.94);
+  --line:rgba(32,36,42,.12); --border-glow:rgba(200,60,35,.26);
+  --spot:rgba(28,30,34,.05); --ripple:rgba(200,60,35,.26);
+  --p1:#1c1e22; --p2:#5c626b; --p3:#c83c23;
+  --ok:#2d6a4f; --warn:#b45309; --bad:#c83c23; --blue:#3b556e; --cyan:#4a6b6e;
+  --txt:#18191c; --dim:#4a4d52; --dim2:#76787d;
+  --radius:16px; --radius-sm:10px;
+  --grad-main:linear-gradient(135deg,#1c1e22 0%,#5c626b 62%,#c83c23 100%);
+  --grad-ribbon:linear-gradient(90deg,rgba(28,30,34,0),#5c626b 48%,#9c988e 72%,rgba(200,60,35,0));
+  --grad-flow:linear-gradient(90deg,#1c1e22,#5c626b,#9c988e,#c83c23,#1c1e22);
+  --grad-flow-warn:linear-gradient(90deg,#8a4b0f,#d97706,#fde68a,#d97706,#8a4b0f);
+  --grad-flow-bad:linear-gradient(90deg,#7f1d1d,#c83c23,#e8aea3,#c83c23,#7f1d1d);
+  --flow-period:240px; --flow-duration:16s;
+}
+/* 晨曦·白瓷彩雾（羊脂白瓷） */
+html body[data-theme="gemini-porcelain"]{
+  color-scheme:light;
+  --bg:#f6f8fc; --atmo-solid:#ffffff; --atmo-edge:rgba(255,255,255,.96);
+  --surface-bg:rgba(255,255,255,.75); --surface-2:rgba(245,248,254,.88); --panel:rgba(255,255,255,.80);
+  --surface-img:linear-gradient(150deg,rgba(255,255,255,.62),rgba(236,241,250,.34) 60%,rgba(66,133,244,.028));
+  --topbar-bg:rgba(248,250,253,.90); --thead-bg:rgba(238,243,250,.94);
+  --line:rgba(66,133,244,.12); --border-glow:rgba(155,114,203,.30);
+  --spot:rgba(155,114,203,.10); --ripple:rgba(66,133,244,.22);
+  --p1:#4285f4; --p2:#9b72cb; --p3:#d96570;
+  --ok:#1e8e3e; --warn:#e37400; --bad:#d93025; --blue:#1a73e8; --cyan:#129eaf;
+  --txt:#141a26; --dim:#4a5568; --dim2:#718096;
+  --radius:22px; --radius-sm:14px;
+  --grad-main:linear-gradient(135deg,#4285f4 0%,#9b72cb 50%,#d96570 100%);
+  --grad-ribbon:linear-gradient(90deg,rgba(66,133,244,0),#9b72cb 44%,#d96570 72%,rgba(244,156,70,0));
+  --grad-flow:linear-gradient(90deg,#4285f4,#9b72cb,#d96570,#f49c46,#4285f4);
+  --grad-flow-warn:linear-gradient(90deg,#a16207,#e37400,#fde68a,#e37400,#a16207);
+  --grad-flow-bad:linear-gradient(90deg,#8f1a12,#d93025,#f7b6b2,#d93025,#8f1a12);
+  --flow-period:250px; --flow-duration:15s;
+}
+
+/* ---------------- 4. 亮色材质的器物质感 ---------------- */
+/* 瓷质卡片：内壁高光 + 微弱下沉阴影，不能沿用深色主题的黑色投影 */
+html body[data-theme="blue-porcelain"] :is(.card,.panel,.live-card,.master-card,.gauge-card,.kpi-card),
+html body[data-theme="gemini-porcelain"] :is(.card,.panel,.live-card,.master-card,.gauge-card,.kpi-card){
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.95),
+             inset 0 -1px 2px rgba(27,59,115,.08),
+             0 12px 32px -10px rgba(18,42,76,.12);
+  border-color:var(--line);
+}
+html body[data-theme="blue-porcelain"] :is(.card,.panel,.live-card,.master-card,.gauge-card):hover,
+html body[data-theme="gemini-porcelain"] :is(.card,.panel,.live-card,.master-card,.gauge-card):hover{
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.98),
+             inset 0 -1px 2px rgba(27,59,115,.10),
+             0 16px 38px -12px rgba(18,42,76,.18);
+}
+/* 宣纸卡片：没有光泽，只有纸纤维的极薄内框与轻微下沉 */
+html body[data-theme="ink-wash"] :is(.card,.panel,.live-card,.master-card,.gauge-card,.kpi-card){
+  box-shadow:inset 0 0 0 1px rgba(28,30,34,.09),
+             0 10px 26px -10px rgba(45,40,30,.10);
+  border-color:rgba(32,36,42,.10);
+}
+html body[data-theme="ink-wash"] :is(.card,.panel,.live-card,.master-card,.gauge-card):hover{
+  box-shadow:inset 0 0 0 1px rgba(28,30,34,.13),
+             0 14px 30px -12px rgba(45,40,30,.16);
+}
+/* 亮色主题下的分段控件 / 凹槽 / 顶栏 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(.devices,.seg,.range-switch,.stat,.peer,.link,.app){
+  background-color:var(--surface-2)!important;
+  border-color:var(--line);
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .topbar{
+  box-shadow:0 6px 22px -14px rgba(18,42,76,.28),inset 0 -1px 0 rgba(255,255,255,.55);
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) thead th{
+  border-bottom:1px solid var(--line);
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) tbody tr:hover td{
+  background:rgba(20,40,70,.045);
+}
+/* 亮色主题的按钮/激活胶囊：多彩渐变里混有浅橙浅粉，白字压不住。
+   这里统一退回「单色器物底」—— 青花蓝 / 墨黑 / 品牌蓝，白字对比稳定。 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .btn,
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .tool-link.active,
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(.dev,.seg button,.range-btn).active{
+  background-image:none!important;
+  background-color:var(--p1)!important;
+  color:#fbfdff;
+  text-shadow:0 1px 2px rgba(6,18,36,.28);
+  animation:none!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 3px 10px -4px rgba(18,42,76,.35);
+}
+/* 激活胶囊的彩色流动层一并关掉，避免又盖回浅色 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(.dev,.seg button,.range-btn).active::before{
+  display:none!important;
+}
+/* 站点名：深色皮肤写死 #fff，亮底上必须回到正文色 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .brand{
+  color:var(--txt);
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .brand .emblem-box{
+  color:#fbfdff;
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .btn.danger{
+  color:#fff5f5;
+}
+/* 亮色主题的卡片聚光改成正向提亮，而不是加一层深色 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(.card,.panel,.live-card,.master-card,.gauge-card,.peer,.link,.app,.stat)::before{
+  background:radial-gradient(300px circle at var(--mx,50%) var(--my,20%),var(--spot),transparent 70%);
+  mix-blend-mode:normal;
+}
+/* 亮色主题的下拉/弹层 */
+html body[data-theme="ink-wash"] #hwMotionSelect,
+html body[data-theme="blue-porcelain"] #hwMotionSelect,
+html body[data-theme="gemini-porcelain"] #hwMotionSelect{color-scheme:light;}
+
+/* ---------------- 5. 亮色主题文字对比兜底 ----------------
+   深色皮肤里的 color:#fff / #e2e8f0 硬编码在亮底上就是白底白字。
+   这里按"页面实际用到的选择器"逐个接住，统一回到变量色。
+   用 html body 前缀保证压过页面内 <style> 的同名类选择器。 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(
+  .master-info h2, .panel h2, .panel-head h2, .stat-value, .chart-head .t,
+  .legend b, .chart-tip b, .row .v, .daily-events b, .foot b,
+  .kpi-value, .kpi-num, .big-num, .metric-value, .value-lg,
+  .card h1, .card h2, .card h3, .panel h1, .panel h3,
+  th, .th, td strong, td b
+){
+  color:var(--txt);
+  -webkit-text-fill-color:currentColor;
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(
+  .master-foot, .gauge-sub, .chart-range, .empty-row, .foot, .hw-code, .panel-sub,
+  .stat-sub, .stat-label, .gauge-val .unit, .chart-tip, .legend, .daily-events
+){
+  color:var(--dim2);
+}
+/* 次级文字：逐条列出，避免 :is() 取最高特异性时把 .dev/.tool-link 也降成灰字 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .row .k,
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .gauge-head,
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .gauge-tag,
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .live,
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .brand .brand-text em,
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .chart-tip .tip-time,
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .subbar-label{
+  color:var(--dim);
+}
+/* 渐变文字：白色端在亮底上等于隐形，改成「深字 → 主色」的上浅下深渐变 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(
+  .master-ring .num, .gauge-val .num, .kpi-value, .metric-value
+){
+  background-image:linear-gradient(180deg,var(--txt) 26%,var(--p1) 138%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+/* 告警态仍以告警色为准，不能被上面的兜底盖掉 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(
+  .stat-value,.row .v,.legend b,.kpi-value,.master-info h2,.chart-tip b
+).warn{
+  color:var(--warn);
+  -webkit-text-fill-color:currentColor;
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(
+  .stat-value,.row .v,.legend b,.kpi-value,.master-info h2,.chart-tip b
+).bad{
+  color:var(--bad);
+  -webkit-text-fill-color:currentColor;
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .gauge-card.warn .gauge-val .num{
+  color:var(--warn);background-image:none;-webkit-text-fill-color:currentColor;
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .gauge-card.bad .gauge-val .num{
+  color:var(--bad);background-image:none;-webkit-text-fill-color:currentColor;
+}
+/* 亮色主题里所有带背景的胶囊/徽章，文字强制深色，防止浅底浅字 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(
+  .status-chip,.status-pill,.badge,.gauge-tag,.mini-badge,.chip
+){
+  color:var(--txt);
+}
+/* 状态色优先于上面的兜底 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(.status-chip,.status-pill,.badge,.gauge-tag,.chip).ok{
+  color:var(--ok);
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(.status-chip,.status-pill,.badge,.gauge-tag,.chip).warn{
+  color:var(--warn);
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(.status-chip,.status-pill,.badge,.gauge-tag,.chip).bad{
+  color:var(--bad);
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(.mini-badge .mb-k,.mini-badge .mb-u){
+  color:var(--dim2);
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(.mini-badge .mb-v){
+  color:var(--txt);
+}
+/* 亮色主题的进度条末端白珠看不见，改成主题深色珠 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) :is(.bar,.callbar,.load-bar) i::after{
+  background:var(--p1);
+  box-shadow:0 0 6px var(--p1);
+}
+/* 亮色主题的画廊弹层：白瓷纸张质感，不再是深色玻璃 */
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .hw-theme-gallery{
+  background:linear-gradient(150deg,rgba(255,255,255,.98),rgba(240,246,251,.97));
+  border-color:var(--line);
+  box-shadow:0 26px 70px -24px rgba(18,42,76,.30),inset 0 1px 0 rgba(255,255,255,.9);
+  color:var(--txt);
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .hw-theme-gallery :is(.hw-gallery-heading span,.hw-option-copy small,.hw-gallery-footer){
+  color:var(--dim2);
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .hw-theme-option{
+  color:var(--txt);
+}
+html body:is([data-theme="blue-porcelain"],[data-theme="ink-wash"],[data-theme="gemini-porcelain"]) .hw-theme-option:is(:hover,:focus-visible,[aria-selected="true"]){
+  background:rgba(20,40,70,.055);
+}
+html body[data-theme="ink-wash"] .hw-theme-gallery{
+  background:linear-gradient(150deg,rgba(250,247,240,.99),rgba(243,239,228,.98));
+}
+
+/* ---------------- 6. 画廊缩略图 · 12 款专属材质预览 ---------------- */
+.hw-theme-thumb[data-preview="blue-porcelain"]{background:radial-gradient(circle at 32% 28%,#fbfdff 0%,#dcebf2 46%,#8fb2c6 100%)}
+.hw-theme-thumb[data-preview="blue-porcelain"] i{background:conic-gradient(from 200deg at 50% 50%,transparent 0 62%,rgba(27,59,115,.55) 66%,transparent 70%),radial-gradient(circle at 50% 50%,transparent 44%,rgba(46,95,161,.34) 47%,transparent 52%)}
+.hw-theme-thumb[data-preview="blue-porcelain"] b{background:radial-gradient(circle at 70% 74%,rgba(166,44,43,.42),transparent 46%)}
+.hw-theme-thumb[data-preview="sunrise-gold"]{background:linear-gradient(168deg,#05070f 0%,#16203c 40%,#7a2c22 68%,#f59e0b 86%,#ffd166 100%)}
+.hw-theme-thumb[data-preview="sunrise-gold"] i{background:conic-gradient(from 210deg at 18% 16%,rgba(255,238,180,.55) 0deg,transparent 26deg,rgba(255,180,90,.30) 34deg,transparent 62deg)}
+.hw-theme-thumb[data-preview="sunrise-gold"] b{clip-path:polygon(0 100%,0 62%,18% 44%,34% 66%,52% 34%,70% 60%,86% 46%,100% 64%,100% 100%);background:linear-gradient(180deg,#ffd166,#8a4a22 55%,#0b0f1c)}
+.hw-theme-thumb[data-preview="ink-wash"]{background:#f3efe4}
+.hw-theme-thumb[data-preview="ink-wash"] i{background:radial-gradient(ellipse 42% 34% at 34% 44%,rgba(28,30,34,.72),transparent 62%),radial-gradient(ellipse 30% 26% at 68% 38%,rgba(92,98,107,.45),transparent 60%)}
+.hw-theme-thumb[data-preview="ink-wash"] b{background:radial-gradient(circle at 78% 76%,rgba(200,60,35,.55),transparent 30%),repeating-linear-gradient(0deg,rgba(120,108,88,.10) 0 1px,transparent 1px 4px)}
+.hw-theme-thumb[data-preview="ferrofluid-chrome"]{background:radial-gradient(circle at 50% 48%,#0d1119,#05070b 72%)}
+.hw-theme-thumb[data-preview="ferrofluid-chrome"] i{background:radial-gradient(circle at 42% 40%,#fff 0%,#cbd5e1 18%,#64748b 42%,#1e293b 66%,#05070b 84%)}
+.hw-theme-thumb[data-preview="ferrofluid-chrome"] b{background:conic-gradient(from 0deg at 50% 50%,transparent 0 8deg,rgba(226,232,240,.42) 10deg,transparent 14deg,transparent 40deg,rgba(226,232,240,.30) 42deg,transparent 46deg,transparent 78deg,rgba(226,232,240,.38) 80deg,transparent 86deg);clip-path:circle(46% at 50% 50%)}
+.hw-theme-thumb[data-preview="black-opal"]{background:conic-gradient(from 40deg at 50% 50%,#05060a,#00e676,#00b0ff,#9b51e0,#ff5252,#05060a)}
+.hw-theme-thumb[data-preview="black-opal"] i{background:repeating-conic-gradient(from 0deg at 50% 50%,rgba(5,6,10,.72) 0 12deg,transparent 12deg 22deg)}
+.hw-theme-thumb[data-preview="black-opal"] b{background:radial-gradient(circle at 46% 42%,rgba(255,255,255,.55),transparent 26%)}
+.hw-theme-thumb[data-preview="gemini-nebula"]{background:radial-gradient(circle at 26% 30%,#4285f4,transparent 56%),radial-gradient(circle at 74% 64%,#d96570,transparent 56%),#080a12}
+.hw-theme-thumb[data-preview="gemini-nebula"] i{background:linear-gradient(102deg,transparent 40%,rgba(198,216,255,.55) 50%,transparent 60%),linear-gradient(102deg,transparent 44%,rgba(198,216,255,.35) 52%,transparent 62%)}
+.hw-theme-thumb[data-preview="gemini-nebula"] b{background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.07),transparent 68%)}
+.hw-theme-thumb[data-preview="gemini-porcelain"]{background:radial-gradient(circle at 30% 34%,rgba(66,133,244,.40),transparent 58%),radial-gradient(circle at 72% 66%,rgba(217,101,112,.38),transparent 58%),#f8fafd}
+.hw-theme-thumb[data-preview="gemini-porcelain"] i{background:linear-gradient(104deg,transparent 38%,rgba(110,96,196,.42) 50%,transparent 62%)}
+.hw-theme-thumb[data-preview="gemini-porcelain"] b{background:radial-gradient(circle at 26% 78%,rgba(244,156,70,.30),transparent 42%)}
+.hw-theme-thumb[data-preview="gemini-halftone"]{background:radial-gradient(circle at 50% 46%,rgba(66,133,244,.35),transparent 62%),#070910}
+.hw-theme-thumb[data-preview="gemini-halftone"] i{background:radial-gradient(#78d9ec 1.4px,transparent 1.5px) 0 0/5px 5px;mask-image:radial-gradient(circle at 50% 50%,#000 12%,transparent 70%);-webkit-mask-image:radial-gradient(circle at 50% 50%,#000 12%,transparent 70%)}
+.hw-theme-thumb[data-preview="gemini-halftone"] b{background:radial-gradient(#f49c46 1.4px,transparent 1.5px) 2px 2px/7px 7px;opacity:.55}
+/* 深色画廊里亮色材质的缩略图加一道内描边，避免与深底糊在一起 */
+.hw-theme-thumb[data-preview="blue-porcelain"],
+.hw-theme-thumb[data-preview="ink-wash"],
+.hw-theme-thumb[data-preview="gemini-porcelain"]{box-shadow:inset 0 0 0 1px rgba(255,255,255,.55),inset 0 1px 0 #ffffff66}
+
+/* ---------------- 7. 动效档位：lite/off 下画布保持静态一帧 ---------------- */
+html body[data-theme][data-motion-effective="lite"] .ambient-bg .hw-material-canvas,
+html body[data-theme][data-motion-effective="off"] .ambient-bg .hw-material-canvas{
+  opacity:.86;
+}
+html body[data-fx-paused="true"] .hw-fx-canvas{opacity:0;transition:opacity .2s ease}
+@media (prefers-reduced-motion:reduce){
+  .hw-fx-canvas{display:none!important}
+}
+
